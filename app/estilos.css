@@ -105,6 +105,10 @@ main { padding: 0 16px; }
 .lista .item:first-child { border-top: 0; }
 .lista h4 { margin: 0; padding: 10px 14px 4px; font-size: 12px; color: var(--suave); text-transform: uppercase; letter-spacing: .04em; }
 .resultado { margin-top: 12px; }
+.agregados { padding: 10px 14px; margin-bottom: 10px; border-color: var(--acento); }
+.agregados-cabeza { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
+.agregado { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--suave); padding: 2px 0; }
+.agregado b { color: var(--texto); font-variant-numeric: tabular-nums; }
 .resultado .grande { font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; }
 #detCantidad { max-width: 110px; }
 #lector { width: 100%; min-height: 240px; border-radius: 14px; overflow: hidden; background: #000; margin-bottom: 10px; }

@@ -199,7 +199,21 @@ $$('[data-cerrar]').forEach((b) => b.addEventListener('click', cerrarHoja));
 let fuente = 'todo';
 $('#comidaElegida').innerHTML = COMIDAS.map((c) => `<option>${c}</option>`).join('');
 $('#botonAgregar').onclick = () => abrirBuscar(comidaPorHora());
+// Lo que se agregó desde que se abrió la búsqueda (para ver el avance sin salir de la comida).
+let agregadosAhora = [];
+function pintarAgregados() {
+  const caja = $('#agregadosAhora');
+  if (!agregadosAhora.length) { caja.hidden = true; return; }
+  const total = agregadosAhora.reduce((t, e) => t + e.k, 0);
+  caja.hidden = false;
+  caja.innerHTML = `<div class="agregados-cabeza"><span>Agregado a ${esc($('#comidaElegida').value)}: <b>${redondo(total)} kcal</b></span>` +
+    `<button class="chip activa" id="listo">Listo</button></div>` +
+    agregadosAhora.map((e) => `<div class="agregado"><span>${esc(e.n)} · ${esc(textoCantidad(e))}</span><b>${redondo(e.k)}</b></div>`).join('');
+  $('#listo').onclick = () => { while (pilaHojas.length) cerrarHoja(); };
+}
 function abrirBuscar(comida) {
+  agregadosAhora = [];
+  pintarAgregados();
   $('#comidaElegida').value = comida;
   $('#busqueda').value = '';
   abrirHoja('#hojaBuscar');
@@ -310,9 +324,19 @@ $('#detAgregar').onclick = () => {
   guardado.escribir('diario', diario);
   recientes = [ali].concat(recientes.filter((a) => a.id !== ali.id)).slice(0, 60);
   guardado.escribir('recientes', recientes);
-  while (pilaHojas.length) cerrarHoja();
   pintarHoy();
   avisar(`${redondo(v.k)} kcal en ${entrada.comida}`);
+  if (!detalle.edicion && pilaHojas.includes('#hojaBuscar')) {
+    // Se queda en la misma comida para seguir agregando: vuelve a la búsqueda vacía.
+    while (pilaHojas[pilaHojas.length - 1] !== '#hojaBuscar') cerrarHoja();
+    agregadosAhora.push(entrada);
+    pintarAgregados();
+    $('#busqueda').value = '';
+    pintarResultados();
+    setTimeout(() => $('#busqueda').focus(), 50);
+  } else {
+    while (pilaHojas.length) cerrarHoja();
+  }
 };
 $('#detBorrar').onclick = () => {
   const k = claveFecha(fecha);
