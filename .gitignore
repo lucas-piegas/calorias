@@ -1,0 +1,4 @@
+# Descargas originales: pesadas y se regeneran (ver LEEME.md)
+datos/
+.claude/
+__pycache__/

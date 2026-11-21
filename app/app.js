@@ -1,0 +1,478 @@
+'use strict';
+/* Contador de calorías personal. Todo vive en el teléfono (localStorage). */
+
+const COMIDAS = ['Desayuno', 'Almuerzo', 'Merienda', 'Cena', 'Snacks'];
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
+
+/* ---------- almacenamiento ---------- */
+const guardado = {
+  leer(clave, defecto) {
+    try { const v = localStorage.getItem('cc.' + clave); return v ? JSON.parse(v) : defecto; }
+    catch (e) { return defecto; }
+  },
+  escribir(clave, valor) {
+    try { localStorage.setItem('cc.' + clave, JSON.stringify(valor)); }
+    catch (e) { avisar('No se pudo guardar: ' + e.message); }
+  },
+};
+let diario = guardado.leer('diario', {});
+let ajustes = guardado.leer('ajustes', { kcal: 2000, p: 120, c: 220, g: 65 });
+let mios = guardado.leer('mios', []);
+let recientes = guardado.leer('recientes', []);
+let favoritos = guardado.leer('favoritos', []);
+let pesos = guardado.leer('pesos', {});
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
+/* ---------- fechas ---------- */
+const claveFecha = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+let fecha = new Date();
+function textoFecha(d) {
+  const hoy = claveFecha(new Date());
+  const ayer = claveFecha(new Date(Date.now() - 864e5));
+  const k = claveFecha(d);
+  if (k === hoy) return 'Hoy';
+  if (k === ayer) return 'Ayer';
+  return d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+function comidaPorHora() {
+  const h = new Date().getHours();
+  if (h < 11) return 'Desayuno';
+  if (h < 15) return 'Almuerzo';
+  if (h < 19) return 'Merienda';
+  if (h < 23) return 'Cena';
+  return 'Snacks';
+}
+
+/* ---------- utilidades ---------- */
+const redondo = (x) => Math.round(x);
+const uno = (x) => Math.round(x * 10) / 10;
+const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let temporizadorAviso;
+function avisar(texto) {
+  const a = $('#aviso'); a.textContent = texto; a.hidden = false;
+  clearTimeout(temporizadorAviso); temporizadorAviso = setTimeout(() => { a.hidden = true; }, 2200);
+}
+function valoresPara(ali, gramos) {
+  const f = gramos / 100;
+  return { k: (ali.k || 0) * f, p: (ali.p || 0) * f, c: (ali.c || 0) * f, g: (ali.g || 0) * f };
+}
+
+/* ---------- base de alimentos ---------- */
+// Todo está en el teléfono: alimentos.json (platos y alimentos) y productos.json (envasados).
+let base = [];
+let productos = [];
+const porCodigo = new Map();
+const indexar = (a) => ' ' + norm(a.n + ' ' + (a.en || '') + ' ' + (a.marca || '')).replace(/[^a-z0-9ñ]+/g, ' ');
+const cargaBase = fetch('alimentos.json').then((r) => r.json()).then((d) => {
+  base = d.alimentos;
+  base.forEach((a) => { a.t = indexar(a); });
+}).catch(() => avisar('No se pudo cargar la base de alimentos'));
+const cargaProductos = fetch('productos.json').then((r) => r.json()).then((d) => {
+  // Cada producto viene compacto: [código, nombre, marca, k, p, c, g, porciones, país, escaneos]
+  productos = d.productos.map(([code, n, marca, k, p, c, g, por, pais, esc]) => ({
+    id: 'off' + code, codigo: code, n: n + (marca ? ' — ' + marca : ''), marca, en: '', k, p, c, g,
+    por, pais, esc, env: 1, f: 'Open Food Facts · código ' + code,
+  }));
+  productos.forEach((a) => { a.t = indexar(a); porCodigo.set(a.codigo, a); });
+}).catch(() => {});
+
+function buscarLocal(q, filtro) {
+  const toks = norm(q).split(/[^a-z0-9ñ]+/).filter(Boolean);
+  if (!toks.length) return [];
+  const res = [];
+  mios.forEach((a) => { a.t = a.t || indexar(a); });
+  const fuentes = filtro === 'env' ? productos : filtro === 'ali' ? mios.concat(base) : mios.concat(base, productos);
+  for (const a of fuentes) {
+    if (!toks.every((tk) => a.t.includes(' ' + tk))) continue;
+    const nombre = norm(a.n);
+    let puntos = 0;
+    if (a.mio) puntos += 300;
+    if (a.tipico) puntos += 200;
+    if (a.pais === 'uy') puntos += 40;
+    if (favoritos.includes(a.id)) puntos += 150;
+    if (a.env) puntos += Math.log2(1 + (a.esc || 0)) * 6 - 20;
+    if (nombre.startsWith(toks[0])) puntos += 60;
+    if (norm(a.en).startsWith(toks[0])) puntos += 20;
+    if (/sin especificar/.test(nombre)) puntos += 10;
+    puntos -= Math.min(nombre.length, 80) * 0.4;
+    res.push({ a, puntos });
+  }
+  res.sort((x, y) => y.puntos - x.puntos);
+  return res.slice(0, 80).map((r) => r.a);
+}
+
+/* ---------- Open Food Facts en línea: solo si un código de barras no está en la base local ---------- */
+function deOFF(p) {
+  const n = p.nutriments || {};
+  let k = n['energy-kcal_100g'];
+  if (k == null && n.energy_100g != null) k = n.energy_100g / 4.184;
+  if (k == null) return null;
+  const marca = Array.isArray(p.brands) ? p.brands.join(', ') : (p.brands || '');
+  const por = [];
+  const sq = parseFloat(p.serving_quantity);
+  if (sq > 0) por.push([`1 porción (${p.serving_size || sq + ' g'})`, sq]);
+  return {
+    id: 'off' + p.code, n: (p.product_name || 'Producto ' + p.code) + (marca ? ' — ' + marca : ''), en: '',
+    k: uno(k), p: uno(n.proteins_100g || 0), c: uno(n.carbohydrates_100g || 0), g: uno(n.fat_100g || 0),
+    fi: uno(n.fiber_100g || 0), az: uno(n.sugars_100g || 0), na: uno((n.sodium_100g || 0) * 1000),
+    por, f: 'Open Food Facts (en línea) · código ' + p.code, env: 1, codigo: p.code,
+  };
+}
+const CAMPOS_OFF = 'code,product_name,brands,nutriments,serving_size,serving_quantity';
+async function productoEnLinea(codigo) {
+  const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(codigo)}.json?fields=${CAMPOS_OFF}`);
+  const d = await r.json();
+  return d.status === 1 ? deOFF(d.product) : null;
+}
+
+/* ---------- vista Diario ---------- */
+function entradasDe(k) { return diario[k] || []; }
+function totales(lista) {
+  return lista.reduce((t, e) => ({ k: t.k + e.k, p: t.p + e.p, c: t.c + e.c, g: t.g + e.g }), { k: 0, p: 0, c: 0, g: 0 });
+}
+function pintarHoy() {
+  $('#fechaTexto').textContent = textoFecha(fecha);
+  const lista = entradasDe(claveFecha(fecha));
+  const t = totales(lista);
+  const resto = ajustes.kcal - t.k;
+  $('#kcalRestantes').textContent = Math.abs(redondo(resto));
+  $('#kcalEtiqueta').textContent = resto >= 0 ? 'restantes' : 'de más';
+  $('#kcalObjetivo').textContent = redondo(ajustes.kcal);
+  $('#kcalComido').textContent = redondo(t.k);
+  const frac = Math.min(t.k / (ajustes.kcal || 1), 1);
+  $('#anilloValor').style.strokeDashoffset = 326.7 * (1 - frac);
+  $('#anillo').classList.toggle('pasado', resto < 0);
+  $('#macros').innerHTML = [['Proteína', t.p, ajustes.p, 'var(--prot)'], ['Carbos', t.c, ajustes.c, 'var(--carb)'], ['Grasa', t.g, ajustes.g, 'var(--grasa)']]
+    .map(([n, v, obj, col]) => `<div class="macro">${n}<b>${redondo(v)} / ${redondo(obj)} g</b><div class="barrita"><i style="width:${Math.min(100, v / (obj || 1) * 100)}%;background:${col}"></i></div></div>`).join('');
+
+  $('#comidas').innerHTML = COMIDAS.map((c) => {
+    const items = lista.map((e, i) => ({ e, i })).filter(({ e }) => e.comida === c);
+    const sub = totales(items.map((x) => x.e));
+    return `<div class="tarjeta comida"><div class="comida-cabeza"><strong>${c}</strong><span><b>${redondo(sub.k)} kcal</b><button data-agregar="${c}">+ Agregar</button></span></div>` +
+      items.map(({ e, i }) => `<button class="item" data-entrada="${i}"><span class="nombre">${esc(e.n)}<small>${esc(textoCantidad(e))}</small></span><span class="kcal">${redondo(e.k)}</span></button>`).join('') + '</div>';
+  }).join('') + (lista.length ? '' : `<button class="boton secundario" id="copiarAyer">Copiar lo del día anterior</button>`);
+}
+function textoCantidad(e) {
+  return e.porNombre === 'g' ? `${uno(e.cant)} g` : `${uno(e.cant)} × ${e.porNombre} · ${redondo(e.gramos)} g`;
+}
+
+$('#comidas').addEventListener('click', (ev) => {
+  const ag = ev.target.closest('[data-agregar]');
+  if (ag) return abrirBuscar(ag.dataset.agregar);
+  const it = ev.target.closest('[data-entrada]');
+  if (it) {
+    const e = entradasDe(claveFecha(fecha))[+it.dataset.entrada];
+    abrirDetalle(e.ali, { indice: +it.dataset.entrada, entrada: e });
+  }
+  if (ev.target.id === 'copiarAyer') {
+    const ant = entradasDe(claveFecha(new Date(fecha.getTime() - 864e5)));
+    if (!ant.length) return avisar('El día anterior está vacío');
+    diario[claveFecha(fecha)] = ant.map((e) => ({ ...e }));
+    guardado.escribir('diario', diario); pintarHoy(); avisar('Copiado');
+  }
+});
+$('#diaAnterior').onclick = () => { fecha = new Date(fecha.getTime() - 864e5); pintarHoy(); };
+$('#diaSiguiente').onclick = () => { fecha = new Date(fecha.getTime() + 864e5); pintarHoy(); };
+$('#fechaTexto').onclick = () => { fecha = new Date(); pintarHoy(); };
+
+/* ---------- pestañas y hojas ---------- */
+$$('.pestanas [data-vista]').forEach((b) => b.addEventListener('click', () => {
+  $$('.pestanas [data-vista]').forEach((x) => x.classList.toggle('activa', x === b));
+  $$('.vista').forEach((v) => v.classList.toggle('activa', v.id === b.dataset.vista));
+  $('.barra').style.visibility = b.dataset.vista === 'vistaHoy' ? 'visible' : 'hidden';
+  if (b.dataset.vista === 'vistaHistorial') pintarHistorial();
+  if (b.dataset.vista === 'vistaAjustes') pintarAjustes();
+  window.scrollTo(0, 0);
+}));
+const pilaHojas = [];
+function abrirHoja(id) { $(id).hidden = false; pilaHojas.push(id); document.body.style.overflow = 'hidden'; }
+function cerrarHoja() {
+  const id = pilaHojas.pop(); if (id) $(id).hidden = true;
+  if (id === '#hojaEscaner') pararEscaner();
+  if (!pilaHojas.length) document.body.style.overflow = '';
+}
+$$('[data-cerrar]').forEach((b) => b.addEventListener('click', cerrarHoja));
+
+/* ---------- hoja Buscar ---------- */
+let fuente = 'todo';
+$('#comidaElegida').innerHTML = COMIDAS.map((c) => `<option>${c}</option>`).join('');
+$('#botonAgregar').onclick = () => abrirBuscar(comidaPorHora());
+function abrirBuscar(comida) {
+  $('#comidaElegida').value = comida;
+  $('#busqueda').value = '';
+  abrirHoja('#hojaBuscar');
+  pintarResultados();
+  setTimeout(() => $('#busqueda').focus(), 50);
+}
+$$('.filtros .chip').forEach((b) => b.addEventListener('click', () => {
+  fuente = b.dataset.fuente;
+  $$('.filtros .chip').forEach((x) => x.classList.toggle('activa', x === b));
+  pintarResultados();
+}));
+let esperaBusqueda;
+$('#busqueda').addEventListener('input', () => {
+  clearTimeout(esperaBusqueda);
+  esperaBusqueda = setTimeout(pintarResultados, 120);
+});
+$('#busqueda').addEventListener('keydown', (e) => { if (e.key === 'Enter') { clearTimeout(esperaBusqueda); pintarResultados(); e.target.blur(); } });
+
+let resultadosActuales = [];
+function filaAlimento(a, i) {
+  const etiquetas = [];
+  if (a.mio) etiquetas.push('mío');
+  if (a.pais === 'uy') etiquetas.push('UY');
+  if (a.tipico && a.pais === 'ar') etiquetas.push('AR');
+  if (a.env) etiquetas.push('envasado');
+  if (/aproximado/.test(a.f)) etiquetas.push('aprox.');
+  const marca = etiquetas.map((e) => `<span class="etiqueta">${e}</span>`).join('');
+  const aprox = '';
+  const sub = a.en ? a.en : (a.por[0] ? `${a.por[0][0]} = ${redondo(valoresPara(a, a.por[0][1]).k)} kcal` : '');
+  return `<button class="item" data-res="${i}"><span class="nombre">${esc(a.n)}${marca}${aprox}<small>${esc(sub)}</small></span><span class="kcal">${redondo(a.k)}<small class="nota"> /100g</small></span></button>`;
+}
+async function pintarResultados() {
+  const q = $('#busqueda').value.trim();
+  const caja = $('#resultados');
+  if (!q) {
+    const favs = favoritos.map((id) => recientes.find((a) => a.id === id) || mios.find((a) => a.id === id) || base.find((a) => a.id === id)).filter(Boolean);
+    const rec = recientes.filter((a) => !favoritos.includes(a.id)).slice(0, 25);
+    resultadosActuales = favs.concat(rec);
+    caja.innerHTML = (favs.length ? '<h4>Favoritos</h4>' + favs.map(filaAlimento).join('') : '') +
+      (rec.length ? '<h4>Recientes</h4>' + rec.map((a, i) => filaAlimento(a, i + favs.length)).join('') : '') ||
+      '<p class="nota" style="padding:12px">Escribí para buscar. Los alimentos que uses van a aparecer acá.</p>';
+    return;
+  }
+  await cargaBase;
+  if (fuente !== 'ali') await cargaProductos;
+  resultadosActuales = buscarLocal(q, fuente);
+  caja.innerHTML = resultadosActuales.length ? resultadosActuales.map(filaAlimento).join('') :
+    '<p class="nota" style="padding:12px">Sin resultados. Probá con otra palabra o creá el alimento en Ajustes → Mis alimentos.</p>';
+}
+$('#resultados').addEventListener('click', (ev) => {
+  const it = ev.target.closest('[data-res]');
+  if (it) abrirDetalle(resultadosActuales[+it.dataset.res]);
+});
+
+/* ---------- hoja Detalle ---------- */
+let detalle = null; // { ali, edicion }
+function abrirDetalle(ali, edicion = null) {
+  detalle = { ali, edicion };
+  $('#detNombre').textContent = ali.n;
+  $('#detFuente').textContent = (ali.en ? ali.en + ' · ' : '') + (ali.f || '');
+  const opciones = ali.por.map((p, i) => `<option value="${i}">${esc(p[0])} (${uno(p[1])} g)</option>`);
+  opciones.push('<option value="g">gramos</option>');
+  $('#detPorcion').innerHTML = opciones.join('');
+  if (edicion) {
+    const e = edicion.entrada;
+    const idx = ali.por.findIndex((p) => p[0] === e.porNombre);
+    $('#detPorcion').value = idx >= 0 ? idx : 'g';
+    $('#detCantidad').value = e.porNombre === 'g' || idx < 0 ? uno(e.gramos) : e.cant;
+    $('#comidaElegida').value = e.comida;
+  } else {
+    $('#detPorcion').value = ali.por.length ? 0 : 'g';
+    $('#detCantidad').value = ali.por.length ? 1 : 100;
+  }
+  $('#detAgregar').textContent = edicion ? 'Guardar cambios' : `Agregar a ${$('#comidaElegida').value}`;
+  $('#detBorrar').hidden = !edicion;
+  $('#favorito').textContent = favoritos.includes(ali.id) ? '★' : '☆';
+  pintarDetalle();
+  abrirHoja('#hojaDetalle');
+}
+function gramosDetalle() {
+  const cant = parseFloat(String($('#detCantidad').value).replace(',', '.')) || 0;
+  const sel = $('#detPorcion').value;
+  return sel === 'g' ? { cant, gramos: cant, porNombre: 'g' } : { cant, gramos: cant * detalle.ali.por[+sel][1], porNombre: detalle.ali.por[+sel][0] };
+}
+function pintarDetalle() {
+  const { gramos } = gramosDetalle();
+  const v = valoresPara(detalle.ali, gramos);
+  $('#detResultado').innerHTML = `<div class="grande">${redondo(v.k)} kcal</div><div class="nota">${redondo(gramos)} g</div>
+    <div class="macros" style="margin-top:8px">
+      <div class="macro">Proteína<b>${uno(v.p)} g</b></div><div class="macro">Carbos<b>${uno(v.c)} g</b></div><div class="macro">Grasa<b>${uno(v.g)} g</b></div>
+    </div>`;
+}
+$('#detCantidad').addEventListener('input', pintarDetalle);
+$('#detPorcion').addEventListener('change', () => {
+  if ($('#detPorcion').value === 'g' && parseFloat($('#detCantidad').value) < 10) $('#detCantidad').value = 100;
+  else if ($('#detPorcion').value !== 'g' && parseFloat($('#detCantidad').value) >= 10) $('#detCantidad').value = 1;
+  pintarDetalle();
+});
+$('#detAgregar').onclick = () => {
+  const { cant, gramos, porNombre } = gramosDetalle();
+  if (!(gramos > 0)) return avisar('Poné una cantidad');
+  const ali = detalle.ali;
+  const v = valoresPara(ali, gramos);
+  const entrada = { n: ali.n, cant, gramos, porNombre, comida: $('#comidaElegida').value, ...v, ali };
+  const k = claveFecha(fecha);
+  diario[k] = diario[k] || [];
+  if (detalle.edicion) diario[k][detalle.edicion.indice] = entrada; else diario[k].push(entrada);
+  guardado.escribir('diario', diario);
+  recientes = [ali].concat(recientes.filter((a) => a.id !== ali.id)).slice(0, 60);
+  guardado.escribir('recientes', recientes);
+  while (pilaHojas.length) cerrarHoja();
+  pintarHoy();
+  avisar(`${redondo(v.k)} kcal en ${entrada.comida}`);
+};
+$('#detBorrar').onclick = () => {
+  const k = claveFecha(fecha);
+  diario[k].splice(detalle.edicion.indice, 1);
+  guardado.escribir('diario', diario);
+  cerrarHoja(); pintarHoy(); avisar('Borrado');
+};
+$('#favorito').onclick = () => {
+  const id = detalle.ali.id;
+  if (favoritos.includes(id)) favoritos = favoritos.filter((x) => x !== id);
+  else {
+    favoritos.unshift(id);
+    if (!recientes.some((a) => a.id === id)) { recientes.push(detalle.ali); guardado.escribir('recientes', recientes); }
+  }
+  guardado.escribir('favoritos', favoritos);
+  $('#favorito').textContent = favoritos.includes(id) ? '★' : '☆';
+};
+
+/* ---------- escáner de código de barras ---------- */
+let lector = null;
+function cargarScript(src) {
+  return new Promise((ok, mal) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = mal; document.head.appendChild(s); });
+}
+$('#escanear').onclick = async () => {
+  abrirHoja('#hojaEscaner');
+  $('#codigoManual').value = '';
+  $('#escanerEstado').textContent = 'Abriendo la cámara…';
+  try {
+    if (!window.Html5Qrcode) await cargarScript('vendor/html5-qrcode.min.js');
+    const F = window.Html5QrcodeSupportedFormats;
+    lector = new window.Html5Qrcode('lector', { formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128], verbose: false });
+    await lector.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 260, height: 130 } }, (codigo) => { pararEscaner(); buscarPorCodigo(codigo); });
+    $('#escanerEstado').textContent = 'Apuntá al código de barras del envase.';
+  } catch (e) {
+    lector = null;
+    $('#escanerEstado').textContent = 'No se pudo usar la cámara (' + (e.message || e) + '). Escribí el código a mano.';
+  }
+};
+function pararEscaner() {
+  // stop() lanza un error si la cámara nunca arrancó (sin permiso o sin cámara): se ignora.
+  if (lector) {
+    const l = lector; lector = null;
+    try { Promise.resolve(l.stop()).then(() => l.clear()).catch(() => {}); } catch (e) { /* no estaba corriendo */ }
+  }
+}
+$('#buscarCodigo').onclick = () => { const c = $('#codigoManual').value.trim(); if (c) buscarPorCodigo(c); };
+async function buscarPorCodigo(codigo) {
+  $('#escanerEstado').textContent = `Buscando ${codigo}…`;
+  // 1) base local; 2) solo si no está, Open Food Facts en línea (producto nuevo o importado).
+  await cargaProductos;
+  const local = mios.find((a) => a.codigo === codigo) || porCodigo.get(codigo) || recientes.find((a) => a.codigo === codigo);
+  if (local) { cerrarHoja(); abrirDetalle(local); return; }
+  $('#escanerEstado').textContent = `${codigo} no está en la base del teléfono. Consultando Open Food Facts en línea…`;
+  try {
+    const p = await productoEnLinea(codigo);
+    if (!p) { $('#escanerEstado').textContent = `El código ${codigo} no está en Open Food Facts. Crealo en Ajustes → Mis alimentos.`; return; }
+    cerrarHoja();
+    abrirDetalle(p);
+  } catch (e) {
+    $('#escanerEstado').textContent = `El código ${codigo} no está en la base del teléfono y no hay conexión. Crealo en Ajustes → Mis alimentos.`;
+  }
+}
+
+/* ---------- historial y peso ---------- */
+function pintarHistorial() {
+  const dias = [];
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(Date.now() - i * 864e5);
+    const l = entradasDe(claveFecha(d));
+    dias.push({ d, t: totales(l), n: l.length });
+  }
+  const con = dias.slice(0, 7).filter((x) => x.n);
+  const prom = con.length ? totales(con.map((x) => x.t)) : null;
+  $('#promedio').innerHTML = prom ? `<div class="grande" style="font-size:26px;font-weight:700">${redondo(prom.k / con.length)} kcal/día</div>
+    <p class="nota">Promedio de ${con.length} día(s) con registro. Proteína ${redondo(prom.p / con.length)} g · Carbos ${redondo(prom.c / con.length)} g · Grasa ${redondo(prom.g / con.length)} g</p>` :
+    '<p class="nota">Todavía no hay registros esta semana.</p>';
+  const max = Math.max(ajustes.kcal * 1.3, ...dias.map((x) => x.t.k));
+  $('#listaDias').innerHTML = dias.filter((x) => x.n).map((x) => `<div class="dia"><span>${textoFecha(x.d)}</span>
+    <div class="barra-dia"><i class="${x.t.k > ajustes.kcal ? 'pasado' : ''}" style="width:${x.t.k / max * 100}%"></i></div><b>${redondo(x.t.k)}</b></div>`).join('') ||
+    '<p class="nota">Sin días registrados.</p>';
+  const ps = Object.entries(pesos).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 15);
+  $('#listaPesos').innerHTML = ps.map(([k, v]) => `<div class="dia"><span>${k.slice(5).split('-').reverse().join('/')}</span><span></span><b>${v} kg</b></div>`).join('');
+}
+$('#guardarPeso').onclick = () => {
+  const v = parseFloat(String($('#pesoHoy').value).replace(',', '.'));
+  if (!(v > 0)) return;
+  pesos[claveFecha(new Date())] = uno(v);
+  guardado.escribir('pesos', pesos); $('#pesoHoy').value = ''; pintarHistorial(); avisar('Peso guardado');
+};
+
+/* ---------- ajustes ---------- */
+function pintarAjustes() {
+  $('#ajKcal').value = ajustes.kcal; $('#ajP').value = ajustes.p; $('#ajC').value = ajustes.c; $('#ajG').value = ajustes.g;
+  const pf = ajustes.perfil || {};
+  if (pf.sexo) { $('#calSexo').value = pf.sexo; $('#calEdad').value = pf.edad; $('#calPeso').value = pf.peso; $('#calAltura').value = pf.altura; $('#calAct').value = pf.act; $('#calMeta').value = pf.meta; }
+  $('#listaMios').innerHTML = mios.map((a, i) => `<button class="item" data-mio="${i}"><span class="nombre">${esc(a.n)}</span><span class="kcal">${redondo(a.k)}<small class="nota"> /100g</small></span></button>`).join('') ||
+    '<p class="nota">Acá aparecen los alimentos que cargues a mano.</p>';
+}
+$('#guardarAjustes').onclick = () => {
+  ajustes = { ...ajustes, kcal: +$('#ajKcal').value || 2000, p: +$('#ajP').value || 0, c: +$('#ajC').value || 0, g: +$('#ajG').value || 0 };
+  guardado.escribir('ajustes', ajustes); pintarHoy(); avisar('Objetivo guardado');
+};
+$('#calcular').onclick = () => {
+  const sexo = $('#calSexo').value, edad = +$('#calEdad').value, peso = +$('#calPeso').value, altura = +$('#calAltura').value;
+  const act = +$('#calAct').value, meta = +$('#calMeta').value;
+  if (!edad || !peso || !altura) return avisar('Completá edad, peso y altura');
+  const tmb = 10 * peso + 6.25 * altura - 5 * edad + (sexo === 'h' ? 5 : -161);
+  const kcal = Math.round((tmb * act + meta) / 10) * 10;
+  const p = Math.round(peso * 1.8), g = Math.round(kcal * 0.28 / 9), c = Math.max(0, Math.round((kcal - p * 4 - g * 9) / 4));
+  ajustes = { kcal, p, c, g, perfil: { sexo, edad, peso, altura, act, meta } };
+  guardado.escribir('ajustes', ajustes);
+  $('#calResultado').textContent = `Metabolismo basal ≈ ${Math.round(tmb)} kcal · gasto diario ≈ ${Math.round(tmb * act)} kcal · objetivo ${kcal} kcal (proteína 1,8 g/kg).`;
+  pintarAjustes(); pintarHoy();
+};
+
+/* ---------- mis alimentos ---------- */
+let mioEditando = -1;
+function abrirMio(i = -1) {
+  mioEditando = i;
+  const a = i >= 0 ? mios[i] : { n: '', k: '', p: '', c: '', g: '', por: [] };
+  $('#mioNombre').value = a.n; $('#mioK').value = a.k; $('#mioP').value = a.p; $('#mioC').value = a.c; $('#mioG').value = a.g;
+  $('#mioPorNombre').value = a.por[0] ? a.por[0][0] : ''; $('#mioPorG').value = a.por[0] ? a.por[0][1] : '';
+  $('#mioBorrar').hidden = i < 0;
+  abrirHoja('#hojaMio');
+}
+$('#nuevoMio').onclick = () => abrirMio();
+$('#listaMios').addEventListener('click', (ev) => { const b = ev.target.closest('[data-mio]'); if (b) abrirMio(+b.dataset.mio); });
+const num = (sel) => parseFloat(String($(sel).value).replace(',', '.')) || 0;
+$('#mioGuardar').onclick = () => {
+  const n = $('#mioNombre').value.trim();
+  if (!n || !$('#mioK').value) return avisar('Poné al menos nombre y kcal');
+  const por = num('#mioPorG') > 0 ? [[$('#mioPorNombre').value.trim() || '1 porción', num('#mioPorG')]] : [];
+  const a = { id: mioEditando >= 0 ? mios[mioEditando].id : 'mio' + Date.now(), n, en: '', k: num('#mioK'), p: num('#mioP'), c: num('#mioC'), g: num('#mioG'), fi: 0, az: 0, na: 0, por, f: 'Cargado por mí', mio: 1 };
+  if (mioEditando >= 0) mios[mioEditando] = a; else mios.unshift(a);
+  guardado.escribir('mios', mios); cerrarHoja(); pintarAjustes(); avisar('Guardado');
+};
+$('#mioBorrar').onclick = () => { mios.splice(mioEditando, 1); guardado.escribir('mios', mios); cerrarHoja(); pintarAjustes(); };
+
+/* ---------- copia de seguridad ---------- */
+$('#exportar').onclick = async () => {
+  const datos = JSON.stringify({ app: 'calorias', version: 1, diario, ajustes, mios, recientes, favoritos, pesos });
+  const archivo = new File([datos], `calorias-${claveFecha(new Date())}.json`, { type: 'application/json' });
+  if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
+    try { await navigator.share({ files: [archivo], title: 'Copia de Calorías' }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(archivo); a.download = archivo.name; a.click();
+};
+$('#importar').onchange = async (ev) => {
+  const f = ev.target.files[0]; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (d.app !== 'calorias') throw new Error('no es una copia de esta app');
+    if (!confirm('Esto reemplaza los datos actuales por los de la copia. ¿Seguir?')) return;
+    ({ diario, ajustes, mios, recientes, favoritos, pesos } = { diario: {}, ajustes, mios: [], recientes: [], favoritos: [], pesos: {}, ...d });
+    Object.entries({ diario, ajustes, mios, recientes, favoritos, pesos }).forEach(([k, v]) => guardado.escribir(k, v));
+    pintarHoy(); pintarAjustes(); avisar('Copia importada');
+  } catch (e) { avisar('No se pudo importar: ' + e.message); }
+  ev.target.value = '';
+};
+
+/* ---------- inicio ---------- */
+pintarHoy();
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
