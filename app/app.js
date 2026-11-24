@@ -406,16 +406,22 @@ let confFoto = guardado.leer('foto', { url: '', clave: '', modelo: 'opus' });
 let fotoDatos = null;   // JPEG achicado en base64
 let fotoFilas = [];     // [{ nombre, gramos, confianza, opciones: [alimento], elegido: índice | -1 }]
 $('#ajFotoUrl').value = confFoto.url; $('#ajFotoClave').value = confFoto.clave;
-$('#guardarFoto').onclick = () => {
+// Se guarda solo al escribir: no depende de tocar «Guardar».
+function guardarConfFoto() {
   confFoto = { ...confFoto, url: $('#ajFotoUrl').value.trim().replace(/\/+$/, ''), clave: $('#ajFotoClave').value.trim() };
-  guardado.escribir('foto', confFoto); avisar('Guardado');
-};
+  guardado.escribir('foto', confFoto);
+  $('#fotoConfigurada').textContent = confFoto.url && confFoto.clave ? '✓ Configurado' : 'Faltan datos';
+}
+['#ajFotoUrl', '#ajFotoClave'].forEach((s) => { $(s).addEventListener('input', guardarConfFoto); $(s).addEventListener('change', guardarConfFoto); });
+$('#guardarFoto').onclick = () => { guardarConfFoto(); avisar(confFoto.url && confFoto.clave ? 'Guardado' : 'Faltan la dirección o la clave'); };
+$('#fotoConfigurada').textContent = confFoto.url && confFoto.clave ? '✓ Configurado' : '';
 function elegirModelo(m) {
   confFoto.modelo = m; guardado.escribir('foto', confFoto);
   $$('#fotoModelos .chip').forEach((x) => x.classList.toggle('activa', x.dataset.modelo === m));
 }
 $$('#fotoModelos .chip').forEach((b) => b.addEventListener('click', () => elegirModelo(b.dataset.modelo)));
 $('#abrirFoto').onclick = () => {
+  if (!confFoto.url || !confFoto.clave) guardarConfFoto(); // por si se escribió y no se guardó
   if (!confFoto.url || !confFoto.clave) { avisar('Primero cargá la dirección y la clave en Ajustes → Foto del plato'); return; }
   fotoDatos = null; $('#fotoVista').hidden = true; $('#fotoGramos').value = ''; $('#fotoNota').value = '';
   $('#fotoEstado').textContent = ''; $('#fotoPaso1').hidden = false; $('#fotoPaso2').hidden = true;
