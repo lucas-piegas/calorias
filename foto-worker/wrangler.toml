@@ -1,0 +1,12 @@
+# Intermediario de la app Calorías: recibe la foto del plato y el peso, y le pregunta a Claude qué hay.
+# La clave de la API y la clave de la app son secretos de Cloudflare (no van en este archivo):
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put CLAVE_APP
+name = "calorias-foto"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# Páginas que pueden llamar al intermediario (separadas por coma).
+ORIGENES = "https://lucas-piegas.github.io,http://localhost:8765"

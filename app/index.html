@@ -85,6 +85,13 @@
       <button class="boton secundario" id="nuevoMio">+ Crear alimento</button>
     </div>
     <div class="tarjeta">
+      <h2>Foto del plato (Claude)</h2>
+      <p class="nota">Dirección y clave del intermediario. Solo quedan en este teléfono.</p>
+      <label>Dirección<input id="ajFotoUrl" placeholder="https://calorias-foto.….workers.dev"></label>
+      <label>Clave de la app<input id="ajFotoClave" type="password" autocomplete="off"></label>
+      <button class="boton secundario" id="guardarFoto">Guardar</button>
+    </div>
+    <div class="tarjeta">
       <h2>Copia de seguridad</h2>
       <p class="nota">Tus datos viven solo en este teléfono. Exportá una copia cada tanto.</p>
       <div class="fila">
@@ -112,6 +119,7 @@
   <div class="hoja-cabeza">
     <button class="icono" data-cerrar>✕</button>
     <select id="comidaElegida"></select>
+    <button class="icono" id="abrirFoto" aria-label="Foto del plato">📷</button>
     <button class="icono" id="escanear" aria-label="Escanear código de barras">▥</button>
   </div>
   <div id="agregadosAhora" class="tarjeta agregados" hidden></div>
@@ -148,6 +156,30 @@
   <div id="lector"></div>
   <div class="fila"><input id="codigoManual" inputmode="numeric" placeholder="o escribí el código"><button class="boton" id="buscarCodigo">Buscar</button></div>
   <p class="nota" id="escanerEstado"></p>
+</div>
+
+<!-- HOJA: foto del plato -->
+<div class="hoja" id="hojaFoto" hidden>
+  <div class="hoja-cabeza"><button class="icono" data-cerrar>✕</button><strong>Foto del plato</strong><span></span></div>
+  <div id="fotoPaso1">
+    <label class="boton secundario">📷 Sacar o elegir foto<input type="file" id="fotoArchivo" accept="image/*" capture="environment" hidden></label>
+    <img id="fotoVista" alt="" hidden>
+    <label>Peso de la comida (g, sin el plato)<input id="fotoGramos" type="number" inputmode="decimal" placeholder="450"></label>
+    <div class="filtros" id="fotoModelos">
+      <button class="chip activa" data-modelo="opus">Opus 5.5</button>
+      <button class="chip" data-modelo="sonnet">Sonnet 5.5</button>
+    </div>
+    <label>Aclaración (opcional)<input id="fotoNota" placeholder="frito en aceite, con azúcar…"></label>
+    <button class="boton" id="fotoAnalizar">Analizar</button>
+    <p class="nota" id="fotoEstado"></p>
+  </div>
+  <div id="fotoPaso2" hidden>
+    <div class="tarjeta"><h3 id="fotoPlato"></h3><p class="nota" id="fotoAdvertencias"></p></div>
+    <div id="fotoItems" class="lista"></div>
+    <div class="tarjeta resultado"><span class="grande" id="fotoTotal">0 kcal</span><p class="nota" id="fotoInfo"></p></div>
+    <button class="boton" id="fotoAgregar">Agregar</button>
+    <button class="boton secundario" id="fotoOtra">Otra foto</button>
+  </div>
 </div>
 
 <!-- HOJA: crear alimento -->

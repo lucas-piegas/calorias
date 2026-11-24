@@ -105,6 +105,15 @@ main { padding: 0 16px; }
 .lista .item:first-child { border-top: 0; }
 .lista h4 { margin: 0; padding: 10px 14px 4px; font-size: 12px; color: var(--suave); text-transform: uppercase; letter-spacing: .04em; }
 .resultado { margin-top: 12px; }
+[hidden] { display: none !important; }
+#fotoVista { width: 100%; max-height: 260px; object-fit: cover; border-radius: 14px; margin-top: 10px; }
+.foto-item { padding: 10px 14px; border-top: 1px solid var(--borde); }
+.foto-item:first-child { border-top: 0; }
+.foto-item .fila { margin-top: 6px; }
+.foto-item select { flex: 1; min-width: 0; }
+.foto-item input[type="number"] { width: 90px; flex: none; }
+.foto-item .kcal { font-variant-numeric: tabular-nums; min-width: 60px; text-align: right; }
+.foto-item.fuera { opacity: .45; }
 .agregados { padding: 10px 14px; margin-bottom: 10px; border-color: var(--acento); }
 .agregados-cabeza { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
 .agregado { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--suave); padding: 2px 0; }

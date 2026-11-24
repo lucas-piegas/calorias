@@ -400,6 +400,122 @@ async function buscarPorCodigo(codigo) {
   }
 }
 
+/* ---------- foto del plato (Claude, a través del intermediario) ---------- */
+// Claude identifica los alimentos y reparte el peso; las calorías salen de la base local.
+let confFoto = guardado.leer('foto', { url: '', clave: '', modelo: 'opus' });
+let fotoDatos = null;   // JPEG achicado en base64
+let fotoFilas = [];     // [{ nombre, gramos, confianza, opciones: [alimento], elegido: índice | -1 }]
+$('#ajFotoUrl').value = confFoto.url; $('#ajFotoClave').value = confFoto.clave;
+$('#guardarFoto').onclick = () => {
+  confFoto = { ...confFoto, url: $('#ajFotoUrl').value.trim().replace(/\/+$/, ''), clave: $('#ajFotoClave').value.trim() };
+  guardado.escribir('foto', confFoto); avisar('Guardado');
+};
+function elegirModelo(m) {
+  confFoto.modelo = m; guardado.escribir('foto', confFoto);
+  $$('#fotoModelos .chip').forEach((x) => x.classList.toggle('activa', x.dataset.modelo === m));
+}
+$$('#fotoModelos .chip').forEach((b) => b.addEventListener('click', () => elegirModelo(b.dataset.modelo)));
+$('#abrirFoto').onclick = () => {
+  if (!confFoto.url || !confFoto.clave) { avisar('Primero cargá la dirección y la clave en Ajustes → Foto del plato'); return; }
+  fotoDatos = null; $('#fotoVista').hidden = true; $('#fotoGramos').value = ''; $('#fotoNota').value = '';
+  $('#fotoEstado').textContent = ''; $('#fotoPaso1').hidden = false; $('#fotoPaso2').hidden = true;
+  elegirModelo(confFoto.modelo || 'opus');
+  abrirHoja('#hojaFoto');
+};
+// Achica la foto a 1024 px de lado: alcanza para reconocer y viaja en ~150 KB.
+async function achicarFoto(archivo) {
+  const url = URL.createObjectURL(archivo);
+  try {
+    const img = await new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = url; });
+    const escala = Math.min(1, 1024 / Math.max(img.naturalWidth, img.naturalHeight));
+    const lienzo = document.createElement('canvas');
+    lienzo.width = Math.round(img.naturalWidth * escala); lienzo.height = Math.round(img.naturalHeight * escala);
+    lienzo.getContext('2d').drawImage(img, 0, 0, lienzo.width, lienzo.height);
+    return lienzo.toDataURL('image/jpeg', 0.82);
+  } finally { URL.revokeObjectURL(url); }
+}
+$('#fotoArchivo').onchange = async (ev) => {
+  const f = ev.target.files[0]; if (!f) return;
+  try {
+    fotoDatos = await achicarFoto(f);
+    $('#fotoVista').src = fotoDatos; $('#fotoVista').hidden = false;
+    setTimeout(() => $('#fotoGramos').focus(), 50);
+  } catch (e) { avisar('No se pudo leer la foto'); }
+  ev.target.value = '';
+};
+$('#fotoAnalizar').onclick = async () => {
+  const gramos = num('#fotoGramos');
+  if (!fotoDatos) return avisar('Falta la foto');
+  if (!(gramos > 0)) return avisar('Falta el peso');
+  const boton = $('#fotoAnalizar');
+  boton.disabled = true; boton.textContent = 'Analizando…';
+  $('#fotoEstado').textContent = `Consultando a ${confFoto.modelo === 'sonnet' ? 'Sonnet 5.5' : 'Opus 5.5'}. Tarda unos segundos.`;
+  try {
+    const r = await fetch(confFoto.url + '/analizar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + confFoto.clave },
+      body: JSON.stringify({ imagen: fotoDatos.split(',')[1], gramos, modelo: confFoto.modelo, nota: $('#fotoNota').value.trim() }),
+    });
+    const d = await r.json().catch(() => ({ error: 'Respuesta inválida (' + r.status + ')' }));
+    if (!r.ok) throw new Error(d.error || 'Error ' + r.status);
+    await cargaBase; await cargaProductos;
+    mostrarAnalisis(d);
+  } catch (e) {
+    $('#fotoEstado').textContent = 'No se pudo analizar: ' + e.message;
+  } finally { boton.disabled = false; boton.textContent = 'Analizar'; }
+};
+function mostrarAnalisis(d) {
+  fotoFilas = d.alimentos.map((a) => {
+    let opciones = buscarLocal(a.busqueda, 'ali').slice(0, 6);
+    if (!opciones.length) opciones = buscarLocal(a.nombre, 'todo').slice(0, 6);
+    if (!opciones.length) opciones = buscarLocal(a.busqueda.split(/\s+/)[0], 'ali').slice(0, 6);
+    return { ...a, opciones, elegido: opciones.length ? 0 : -1 };
+  });
+  $('#fotoPlato').textContent = d.plato;
+  $('#fotoAdvertencias').textContent = d.advertencias || '';
+  const costo = d.uso ? `${d.uso.entrada} + ${d.uso.salida} tokens` : '';
+  $('#fotoInfo').textContent = `${d.modelo} · ${costo}. Revisá cada alimento y sus gramos antes de agregar.`;
+  $('#fotoPaso1').hidden = true; $('#fotoPaso2').hidden = false;
+  pintarFotoItems();
+}
+function pintarFotoItems() {
+  $('#fotoItems').innerHTML = fotoFilas.map((f, i) => {
+    const ali = f.elegido >= 0 ? f.opciones[f.elegido] : null;
+    const k = ali ? redondo(valoresPara(ali, f.gramos).k) : 0;
+    const opciones = f.opciones.map((o, j) => `<option value="${j}" ${j === f.elegido ? 'selected' : ''}>${esc(o.n)} (${redondo(o.k)}/100 g)</option>`).join('');
+    return `<div class="foto-item ${ali ? '' : 'fuera'}"><b>${esc(f.nombre)}</b> <span class="etiqueta">${esc(f.confianza)}</span>
+      <div class="fila"><select data-foto-ali="${i}">${opciones}<option value="-1" ${f.elegido < 0 ? 'selected' : ''}>— no agregar —</option></select></div>
+      <div class="fila"><input type="number" inputmode="decimal" data-foto-g="${i}" value="${f.gramos}"><span class="nota">g</span><span class="kcal" style="flex:1">${k} kcal</span></div></div>`;
+  }).join('');
+  const total = fotoFilas.reduce((t, f) => t + (f.elegido >= 0 ? valoresPara(f.opciones[f.elegido], f.gramos).k : 0), 0);
+  $('#fotoTotal').textContent = `${redondo(total)} kcal`;
+  $('#fotoAgregar').textContent = `Agregar a ${$('#comidaElegida').value}`;
+}
+$('#fotoItems').addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.dataset.fotoAli) fotoFilas[+t.dataset.fotoAli].elegido = +t.value;
+  if (t.dataset.fotoG) fotoFilas[+t.dataset.fotoG].gramos = parseFloat(String(t.value).replace(',', '.')) || 0;
+  pintarFotoItems();
+});
+$('#fotoOtra').onclick = () => { $('#fotoPaso1').hidden = false; $('#fotoPaso2').hidden = true; $('#fotoEstado').textContent = ''; };
+$('#fotoAgregar').onclick = () => {
+  const comida = $('#comidaElegida').value;
+  const k = claveFecha(fecha);
+  diario[k] = diario[k] || [];
+  let n = 0;
+  for (const f of fotoFilas) {
+    if (f.elegido < 0 || !(f.gramos > 0)) continue;
+    const ali = f.opciones[f.elegido];
+    const entrada = { n: ali.n, cant: f.gramos, gramos: f.gramos, porNombre: 'g', comida, ...valoresPara(ali, f.gramos), ali };
+    diario[k].push(entrada); agregadosAhora.push(entrada); n++;
+    recientes = [ali].concat(recientes.filter((a) => a.id !== ali.id)).slice(0, 60);
+  }
+  if (!n) return avisar('No hay alimentos para agregar');
+  guardado.escribir('diario', diario); guardado.escribir('recientes', recientes);
+  cerrarHoja(); pintarAgregados(); pintarHoy();
+  avisar(`${n} alimento(s) agregados a ${comida}`);
+};
+
 /* ---------- historial y peso ---------- */
 function pintarHistorial() {
   const dias = [];
