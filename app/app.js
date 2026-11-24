@@ -440,7 +440,9 @@ async function achicarFoto(archivo) {
     return lienzo.toDataURL('image/jpeg', 0.82);
   } finally { URL.revokeObjectURL(url); }
 }
-$('#fotoArchivo').onchange = async (ev) => {
+// Dos entradas: «Sacar foto» abre la cámara (capture) y «Galería» deja elegir una foto guardada.
+$$('.foto-entrada').forEach((entrada) => { entrada.onchange = elegirFoto; });
+async function elegirFoto(ev) {
   const f = ev.target.files[0]; if (!f) return;
   try {
     fotoDatos = await achicarFoto(f);

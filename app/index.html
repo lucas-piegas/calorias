@@ -163,7 +163,10 @@
 <div class="hoja" id="hojaFoto" hidden>
   <div class="hoja-cabeza"><button class="icono" data-cerrar>✕</button><strong>Foto del plato</strong><span></span></div>
   <div id="fotoPaso1">
-    <label class="boton secundario">📷 Sacar o elegir foto<input type="file" id="fotoArchivo" accept="image/*" capture="environment" hidden></label>
+    <div class="fila">
+      <label class="boton secundario" style="flex:1">📷 Sacar foto<input type="file" id="fotoCamara" class="foto-entrada" accept="image/*" capture="environment" hidden></label>
+      <label class="boton secundario" style="flex:1">🖼️ Galería<input type="file" id="fotoGaleria" class="foto-entrada" accept="image/*" hidden></label>
+    </div>
     <img id="fotoVista" alt="" hidden>
     <label>Peso de la comida (g, sin el plato)<input id="fotoGramos" type="number" inputmode="decimal" placeholder="450"></label>
     <div class="filtros" id="fotoModelos">

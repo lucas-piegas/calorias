@@ -1,7 +1,7 @@
 // Guarda la app y las bases en el teléfono: todo funciona sin conexión.
 // Lo único externo es Open Food Facts, y solo para un código de barras que no esté en productos.json.
 // Subí VERSION cada vez que cambies un archivo de la app.
-const VERSION = 'calorias-v5';
+const VERSION = 'calorias-v6';
 const ARCHIVOS = ['./', 'index.html', 'estilos.css', 'app.js', 'alimentos.json', 'productos.json', 'vendor/html5-qrcode.min.js', 'manifest.webmanifest', 'icono-180.png', 'icono-512.png'];
 
 self.addEventListener('install', (e) => {
