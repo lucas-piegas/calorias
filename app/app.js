@@ -132,27 +132,63 @@ function entradasDe(k) { return diario[k] || []; }
 function totales(lista) {
   return lista.reduce((t, e) => ({ k: t.k + e.k, p: t.p + e.p, c: t.c + e.c, g: t.g + e.g }), { k: 0, p: 0, c: 0, g: 0 });
 }
+// Ícono y color de cada comida (las clases t-… están en estilos.css).
+const ASPECTO = { Desayuno: ['desayuno', 't-des'], Almuerzo: ['almuerzo', 't-alm'], Merienda: ['merienda', 't-mer'], Cena: ['cena', 't-cen'], Snacks: ['snacks', 't-sna'] };
+const icono = (n) => `<svg class="i"><use href="#i-${n}"/></svg>`;
+const DIAS_CORTOS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+const miles = (x) => redondo(x).toLocaleString('es-AR');
+const articulo = (c) => (c === 'Snacks' ? 'a snacks' : c === 'Merienda' || c === 'Cena' ? `a la ${c.toLowerCase()}` : `al ${c.toLowerCase()}`);
+
+function pintarSemana() {
+  // La semana (lunes a domingo) del día elegido. El punto dice si ese día quedó dentro del objetivo.
+  const hoy = claveFecha(new Date());
+  const lunes = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate() - ((fecha.getDay() + 6) % 7));
+  let html = '';
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate() + i);
+    const k = claveFecha(d);
+    const l = entradasDe(k);
+    const kcal = totales(l).k;
+    const punto = l.length ? (kcal > ajustes.kcal ? 'pasado' : 'ok') : '';
+    const clases = ['dia-sem', k === claveFecha(fecha) ? 'activa' : '', k === hoy ? 'hoy' : '', k > hoy ? 'futuro' : ''].join(' ');
+    html += `<button class="${clases}" data-dia="${k}" aria-label="${d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric' })}"><span>${DIAS_CORTOS[d.getDay()]}</span><b>${d.getDate()}</b><i class="${punto}"></i></button>`;
+  }
+  $('#semana').innerHTML = html;
+}
+$('#semana').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-dia]');
+  if (!b) return;
+  const [a, m, d] = b.dataset.dia.split('-').map(Number);
+  fecha = new Date(a, m - 1, d); pintarHoy();
+});
+
 function pintarHoy() {
   $('#fechaTexto').textContent = textoFecha(fecha);
+  $('#fechaLarga').textContent = fecha.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  pintarSemana();
   const lista = entradasDe(claveFecha(fecha));
   const t = totales(lista);
   const resto = ajustes.kcal - t.k;
-  $('#kcalRestantes').textContent = Math.abs(redondo(resto));
-  $('#kcalEtiqueta').textContent = resto >= 0 ? 'restantes' : 'de más';
-  $('#kcalObjetivo').textContent = redondo(ajustes.kcal);
-  $('#kcalComido').textContent = redondo(t.k);
+  $('#kcalRestantes').textContent = miles(Math.abs(resto));
+  $('#kcalEtiqueta').textContent = resto >= 0 ? 'kcal restantes' : 'kcal de más';
+  $('#kcalObjetivo').textContent = miles(ajustes.kcal);
+  $('#kcalComido').textContent = miles(t.k);
   const frac = Math.min(t.k / (ajustes.kcal || 1), 1);
   $('#anilloValor').style.strokeDashoffset = 326.7 * (1 - frac);
   $('#anillo').classList.toggle('pasado', resto < 0);
   $('#macros').innerHTML = [['Proteína', t.p, ajustes.p, 'var(--prot)'], ['Carbos', t.c, ajustes.c, 'var(--carb)'], ['Grasa', t.g, ajustes.g, 'var(--grasa)']]
-    .map(([n, v, obj, col]) => `<div class="macro">${n}<b>${redondo(v)} / ${redondo(obj)} g</b><div class="barrita"><i style="width:${Math.min(100, v / (obj || 1) * 100)}%;background:${col}"></i></div></div>`).join('');
+    .map(([n, v, obj, col]) => `<div class="macro">${n}<div class="barrita"><i style="width:${Math.min(100, v / (obj || 1) * 100)}%;background:${col}"></i></div><b>${redondo(v)}<small> / ${redondo(obj)} g</small></b></div>`).join('');
 
   $('#comidas').innerHTML = COMIDAS.map((c) => {
     const items = lista.map((e, i) => ({ e, i })).filter(({ e }) => e.comida === c);
     const sub = totales(items.map((x) => x.e));
-    return `<div class="tarjeta comida"><div class="comida-cabeza"><strong>${c}</strong><span><b>${redondo(sub.k)} kcal</b><button data-agregar="${c}">+ Agregar</button></span></div>` +
-      items.map(({ e, i }) => `<button class="item" data-entrada="${i}"><span class="nombre">${esc(e.n)}<small>${esc(textoCantidad(e))}</small></span><span class="kcal">${redondo(e.k)}</span></button>`).join('') + '</div>';
-  }).join('') + (lista.length ? '' : `<button class="boton secundario" id="copiarAyer">Copiar lo del día anterior</button>`);
+    const [ic, tono] = ASPECTO[c];
+    return `<section class="tarjeta comida"><div class="comida-cabeza"><span class="ficha ${tono}">${icono(ic)}</span>` +
+      `<div class="comida-titulo"><b>${c}</b><span>${items.length ? miles(sub.k) + ' kcal' : 'Todavía nada'}</span></div>` +
+      `<button class="redondo suave" data-agregar="${c}" aria-label="Agregar ${articulo(c)}">${icono('mas')}</button></div>` +
+      items.map(({ e, i }) => `<button class="item" data-entrada="${i}"><span class="nombre">${esc(e.n)}<small>${esc(textoCantidad(e))}</small></span><span class="kcal">${redondo(e.k)}</span></button>`).join('') + '</section>';
+  }).join('');
+  $('#copiarAyer').hidden = lista.length > 0;
 }
 function textoCantidad(e) {
   return e.porNombre === 'g' ? `${uno(e.cant)} g` : `${uno(e.cant)} × ${e.porNombre} · ${redondo(e.gramos)} g`;
@@ -166,13 +202,13 @@ $('#comidas').addEventListener('click', (ev) => {
     const e = entradasDe(claveFecha(fecha))[+it.dataset.entrada];
     abrirDetalle(e.ali, { indice: +it.dataset.entrada, entrada: e });
   }
-  if (ev.target.id === 'copiarAyer') {
-    const ant = entradasDe(claveFecha(new Date(fecha.getTime() - 864e5)));
-    if (!ant.length) return avisar('El día anterior está vacío');
-    diario[claveFecha(fecha)] = ant.map((e) => ({ ...e }));
-    guardado.escribir('diario', diario); pintarHoy(); avisar('Copiado');
-  }
 });
+$('#copiarAyer').onclick = () => {
+  const ant = entradasDe(claveFecha(new Date(fecha.getTime() - 864e5)));
+  if (!ant.length) return avisar('El día anterior está vacío');
+  diario[claveFecha(fecha)] = ant.map((e) => ({ ...e }));
+  guardado.escribir('diario', diario); pintarHoy(); avisar('Copiado');
+};
 $('#diaAnterior').onclick = () => { fecha = new Date(fecha.getTime() - 864e5); pintarHoy(); };
 $('#diaSiguiente').onclick = () => { fecha = new Date(fecha.getTime() + 864e5); pintarHoy(); };
 $('#fechaTexto').onclick = () => { fecha = new Date(); pintarHoy(); };
@@ -181,7 +217,7 @@ $('#fechaTexto').onclick = () => { fecha = new Date(); pintarHoy(); };
 $$('.pestanas [data-vista]').forEach((b) => b.addEventListener('click', () => {
   $$('.pestanas [data-vista]').forEach((x) => x.classList.toggle('activa', x === b));
   $$('.vista').forEach((v) => v.classList.toggle('activa', v.id === b.dataset.vista));
-  $('.barra').style.visibility = b.dataset.vista === 'vistaHoy' ? 'visible' : 'hidden';
+  $('#botonAgregar').hidden = b.dataset.vista !== 'vistaHoy';
   if (b.dataset.vista === 'vistaHistorial') pintarHistorial();
   if (b.dataset.vista === 'vistaAjustes') pintarAjustes();
   window.scrollTo(0, 0);
@@ -198,6 +234,18 @@ $$('[data-cerrar]').forEach((b) => b.addEventListener('click', cerrarHoja));
 /* ---------- hoja Buscar ---------- */
 let fuente = 'todo';
 $('#comidaElegida').innerHTML = COMIDAS.map((c) => `<option>${c}</option>`).join('');
+// Las pastillas reemplazan al desplegable; el <select> oculto sigue guardando la comida elegida.
+function elegirComida(c) {
+  $('#comidaElegida').value = c;
+  $('#buscarTitulo').textContent = 'Agregar ' + articulo(c);
+  $('#comidaPastillas').innerHTML = COMIDAS.map((x) => `<button class="pastilla${x === c ? ' activa' : ''}" data-comida="${x}">${x}</button>`).join('');
+  pintarAgregados();
+}
+$('#comidaPastillas').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-comida]');
+  if (b) elegirComida(b.dataset.comida);
+});
+$('#crearDesdeBuscar').onclick = () => abrirMio();
 $('#botonAgregar').onclick = () => abrirBuscar(comidaPorHora());
 // Lo que se agregó desde que se abrió la búsqueda (para ver el avance sin salir de la comida).
 let agregadosAhora = [];
@@ -205,24 +253,24 @@ function pintarAgregados() {
   const caja = $('#agregadosAhora');
   if (!agregadosAhora.length) { caja.hidden = true; return; }
   const total = agregadosAhora.reduce((t, e) => t + e.k, 0);
+  const n = agregadosAhora.length;
   caja.hidden = false;
-  caja.innerHTML = `<div class="agregados-cabeza"><span>Agregado a ${esc($('#comidaElegida').value)}: <b>${redondo(total)} kcal</b></span>` +
-    `<button class="chip activa" id="listo">Listo</button></div>` +
-    agregadosAhora.map((e) => `<div class="agregado"><span>${esc(e.n)} · ${esc(textoCantidad(e))}</span><b>${redondo(e.k)}</b></div>`).join('');
+  caja.innerHTML = `<div class="agregados-texto"><span>${esc(agregadosAhora.map((e) => e.n).join(' · '))}</span>` +
+    `<b>${n} ${n === 1 ? 'alimento' : 'alimentos'} · <span class="num">${miles(total)} kcal</span></b></div>` +
+    `<button id="listo">Listo</button>`;
   $('#listo').onclick = () => { while (pilaHojas.length) cerrarHoja(); };
 }
 function abrirBuscar(comida) {
   agregadosAhora = [];
-  pintarAgregados();
-  $('#comidaElegida').value = comida;
+  elegirComida(comida);
   $('#busqueda').value = '';
   abrirHoja('#hojaBuscar');
   pintarResultados();
   setTimeout(() => $('#busqueda').focus(), 50);
 }
-$$('.filtros .chip').forEach((b) => b.addEventListener('click', () => {
+$$('#filtrosFuente .pastilla').forEach((b) => b.addEventListener('click', () => {
   fuente = b.dataset.fuente;
-  $$('.filtros .chip').forEach((x) => x.classList.toggle('activa', x === b));
+  $$('#filtrosFuente .pastilla').forEach((x) => x.classList.toggle('activa', x === b));
   pintarResultados();
 }));
 let esperaBusqueda;
@@ -240,11 +288,11 @@ function filaAlimento(a, i) {
   if (a.tipico && a.pais === 'ar') etiquetas.push('AR');
   if (a.env) etiquetas.push('envasado');
   if (/aproximado/.test(a.f)) etiquetas.push('aprox.');
-  const marca = etiquetas.map((e) => `<span class="etiqueta">${e}</span>`).join('');
-  const aprox = '';
+  const marca = etiquetas.map((e) => `<span class="etiqueta${e === 'mío' ? ' acento' : ''}">${e}</span>`).join('');
   const sub = a.en ? a.en : (a.por[0] ? `${a.por[0][0]} = ${redondo(valoresPara(a, a.por[0][1]).k)} kcal` : '');
-  return `<button class="item" data-res="${i}"><span class="nombre">${esc(a.n)}${marca}${aprox}<small>${esc(sub)}</small></span><span class="kcal">${redondo(a.k)}<small class="nota"> /100g</small></span></button>`;
+  return `<button class="item" data-res="${i}"><span class="nombre">${esc(a.n)}${marca}<small>${esc(sub)}</small></span><span class="kcal">${redondo(a.k)}<small>kcal/100 g</small></span></button>`;
 }
+const grupo = (titulo, filas) => (titulo ? `<h4>${titulo}</h4>` : '') + `<div class="tarjeta lista">${filas}</div>`;
 async function pintarResultados() {
   const q = $('#busqueda').value.trim();
   const caja = $('#resultados');
@@ -252,16 +300,16 @@ async function pintarResultados() {
     const favs = favoritos.map((id) => recientes.find((a) => a.id === id) || mios.find((a) => a.id === id) || base.find((a) => a.id === id)).filter(Boolean);
     const rec = recientes.filter((a) => !favoritos.includes(a.id)).slice(0, 25);
     resultadosActuales = favs.concat(rec);
-    caja.innerHTML = (favs.length ? '<h4>Favoritos</h4>' + favs.map(filaAlimento).join('') : '') +
-      (rec.length ? '<h4>Recientes</h4>' + rec.map((a, i) => filaAlimento(a, i + favs.length)).join('') : '') ||
-      '<p class="nota" style="padding:12px">Escribí para buscar. Los alimentos que uses van a aparecer acá.</p>';
+    caja.innerHTML = (favs.length ? grupo('Favoritos', favs.map(filaAlimento).join('')) : '') +
+      (rec.length ? grupo('Recientes', rec.map((a, i) => filaAlimento(a, i + favs.length)).join('')) : '') ||
+      '<p class="nota vacio">Escribí para buscar. Los alimentos que uses van a aparecer acá.</p>';
     return;
   }
   await cargaBase;
   if (fuente !== 'ali') await cargaProductos;
   resultadosActuales = buscarLocal(q, fuente);
-  caja.innerHTML = resultadosActuales.length ? resultadosActuales.map(filaAlimento).join('') :
-    '<p class="nota" style="padding:12px">Sin resultados. Probá con otra palabra o creá el alimento en Ajustes → Mis alimentos.</p>';
+  caja.innerHTML = resultadosActuales.length ? grupo('', resultadosActuales.map(filaAlimento).join('')) :
+    '<p class="nota vacio">Sin resultados. Probá con otra palabra o tocá «Crear alimento».</p>';
 }
 $('#resultados').addEventListener('click', (ev) => {
   const it = ev.target.closest('[data-res]');
@@ -287,11 +335,16 @@ function abrirDetalle(ali, edicion = null) {
     $('#detPorcion').value = ali.por.length ? 0 : 'g';
     $('#detCantidad').value = ali.por.length ? 1 : 100;
   }
-  $('#detAgregar').textContent = edicion ? 'Guardar cambios' : `Agregar a ${$('#comidaElegida').value}`;
+  $('#detAgregar').textContent = edicion ? 'Guardar cambios' : `Agregar ${articulo($('#comidaElegida').value)}`;
   $('#detBorrar').hidden = !edicion;
-  $('#favorito').textContent = favoritos.includes(ali.id) ? '★' : '☆';
+  marcarFavorito();
   pintarDetalle();
   abrirHoja('#hojaDetalle');
+}
+function marcarFavorito() {
+  const es = favoritos.includes(detalle.ali.id);
+  $('#favorito').classList.toggle('activo', es);
+  $('#favorito').setAttribute('aria-label', es ? 'Quitar de favoritos' : 'Agregar a favoritos');
 }
 function gramosDetalle() {
   const cant = parseFloat(String($('#detCantidad').value).replace(',', '.')) || 0;
@@ -300,18 +353,40 @@ function gramosDetalle() {
 }
 function pintarDetalle() {
   const { gramos } = gramosDetalle();
+  const sel = $('#detPorcion').value;
   const v = valoresPara(detalle.ali, gramos);
-  $('#detResultado').innerHTML = `<div class="grande">${redondo(v.k)} kcal</div><div class="nota">${redondo(gramos)} g</div>
-    <div class="macros" style="margin-top:8px">
-      <div class="macro">Proteína<b>${uno(v.p)} g</b></div><div class="macro">Carbos<b>${uno(v.c)} g</b></div><div class="macro">Grasa<b>${uno(v.g)} g</b></div>
+  // Las porciones como pastillas; el <select> oculto guarda la elegida.
+  $('#detPorciones').innerHTML = detalle.ali.por.map((p, i) => `<button class="pastilla${String(i) === sel ? ' activa' : ''}" data-por="${i}">${esc(p[0])} (${uno(p[1])} g)</button>`).join('') +
+    `<button class="pastilla${sel === 'g' ? ' activa' : ''}" data-por="g">Gramos</button>`;
+  $('#detUnidad').textContent = sel === 'g' ? 'gramos' : `${detalle.ali.por[+sel][0]} · ${redondo(gramos)} g`;
+  const kp = v.p * 4, kc = v.c * 4, kg = v.g * 9, kt = kp + kc + kg || 1;
+  const resto = ajustes.kcal - totales(entradasDe(claveFecha(fecha))).k + (detalle.edicion ? detalle.edicion.entrada.k : 0);
+  $('#detResultado').innerHTML = `<div class="rotulo-fila"><h2 class="rotulo">Vas a sumar</h2><span class="nota">${resto >= 0 ? `Quedan ${miles(resto)} kcal en el día` : `Ya pasaste el objetivo por ${miles(-resto)} kcal`}</span></div>
+    <div class="grande num">${miles(v.k)} <small>kcal</small></div>
+    <div class="reparto" aria-hidden="true"><i style="width:${kp / kt * 100}%;background:var(--prot)"></i><i style="width:${kc / kt * 100}%;background:var(--carb)"></i><i style="flex:1;background:var(--grasa)"></i></div>
+    <div class="macros">
+      <div class="macro"><span><i class="punto" style="background:var(--prot)"></i>Proteína</span><b>${uno(v.p)} g</b></div>
+      <div class="macro"><span><i class="punto" style="background:var(--carb)"></i>Carbos</span><b>${uno(v.c)} g</b></div>
+      <div class="macro"><span><i class="punto" style="background:var(--grasa)"></i>Grasa</span><b>${uno(v.g)} g</b></div>
     </div>`;
 }
 $('#detCantidad').addEventListener('input', pintarDetalle);
-$('#detPorcion').addEventListener('change', () => {
-  if ($('#detPorcion').value === 'g' && parseFloat($('#detCantidad').value) < 10) $('#detCantidad').value = 100;
-  else if ($('#detPorcion').value !== 'g' && parseFloat($('#detCantidad').value) >= 10) $('#detCantidad').value = 1;
+function cambiarPorcion(valor) {
+  $('#detPorcion').value = valor;
+  if (valor === 'g' && parseFloat($('#detCantidad').value) < 10) $('#detCantidad').value = 100;
+  else if (valor !== 'g' && parseFloat($('#detCantidad').value) >= 10) $('#detCantidad').value = 1;
   pintarDetalle();
-});
+}
+$('#detPorciones').addEventListener('click', (ev) => { const b = ev.target.closest('[data-por]'); if (b) cambiarPorcion(b.dataset.por); });
+// Paso de ±1 para porciones (±0,5 por debajo de 1) y de ±10 para gramos.
+function pasoCantidad(signo) {
+  const actual = parseFloat(String($('#detCantidad').value).replace(',', '.')) || 0;
+  const paso = $('#detPorcion').value === 'g' ? 10 : (actual + signo < 1 || actual < 1 ? 0.5 : 1);
+  $('#detCantidad').value = Math.max(0, uno(actual + signo * paso));
+  pintarDetalle();
+}
+$('#detMenos').onclick = () => pasoCantidad(-1);
+$('#detMas').onclick = () => pasoCantidad(1);
 $('#detAgregar').onclick = () => {
   const { cant, gramos, porNombre } = gramosDetalle();
   if (!(gramos > 0)) return avisar('Poné una cantidad');
@@ -352,7 +427,7 @@ $('#favorito').onclick = () => {
     if (!recientes.some((a) => a.id === id)) { recientes.push(detalle.ali); guardado.escribir('recientes', recientes); }
   }
   guardado.escribir('favoritos', favoritos);
-  $('#favorito').textContent = favoritos.includes(id) ? '★' : '☆';
+  marcarFavorito();
 };
 
 /* ---------- escáner de código de barras ---------- */
@@ -411,15 +486,25 @@ function guardarConfFoto() {
   confFoto = { ...confFoto, url: $('#ajFotoUrl').value.trim().replace(/\/+$/, ''), clave: $('#ajFotoClave').value.trim() };
   guardado.escribir('foto', confFoto);
   $('#fotoConfigurada').textContent = confFoto.url && confFoto.clave ? '✓ Configurado' : 'Faltan datos';
+  pintarEstadoFoto();
+}
+function pintarEstadoFoto() {
+  const ok = confFoto.url && confFoto.clave;
+  $('#ajValFoto').className = 'estado' + (ok ? ' ok' : '');
+  $('#ajValFoto').textContent = ok ? 'Conectada' : 'Sin configurar';
 }
 ['#ajFotoUrl', '#ajFotoClave'].forEach((s) => { $(s).addEventListener('input', guardarConfFoto); $(s).addEventListener('change', guardarConfFoto); });
-$('#guardarFoto').onclick = () => { guardarConfFoto(); avisar(confFoto.url && confFoto.clave ? 'Guardado' : 'Faltan la dirección o la clave'); };
+$('#guardarFoto').onclick = () => {
+  guardarConfFoto();
+  if (confFoto.url && confFoto.clave) { cerrarHoja(); avisar('Guardado'); } else avisar('Faltan la dirección o la clave');
+};
 $('#fotoConfigurada').textContent = confFoto.url && confFoto.clave ? '✓ Configurado' : '';
+pintarEstadoFoto();
 function elegirModelo(m) {
   confFoto.modelo = m; guardado.escribir('foto', confFoto);
-  $$('#fotoModelos .chip').forEach((x) => x.classList.toggle('activa', x.dataset.modelo === m));
+  $$('#fotoModelos button').forEach((x) => x.classList.toggle('activa', x.dataset.modelo === m));
 }
-$$('#fotoModelos .chip').forEach((b) => b.addEventListener('click', () => elegirModelo(b.dataset.modelo)));
+$$('#fotoModelos button').forEach((b) => b.addEventListener('click', () => elegirModelo(b.dataset.modelo)));
 $('#abrirFoto').onclick = () => {
   if (!confFoto.url || !confFoto.clave) guardarConfFoto(); // por si se escribió y no se guardó
   if (!confFoto.url || !confFoto.clave) { avisar('Primero cargá la dirección y la clave en Ajustes → Foto del plato'); return; }
@@ -492,12 +577,12 @@ function pintarFotoItems() {
     const k = ali ? redondo(valoresPara(ali, f.gramos).k) : 0;
     const opciones = f.opciones.map((o, j) => `<option value="${j}" ${j === f.elegido ? 'selected' : ''}>${esc(o.n)} (${redondo(o.k)}/100 g)</option>`).join('');
     return `<div class="foto-item ${ali ? '' : 'fuera'}"><b>${esc(f.nombre)}</b> <span class="etiqueta">${esc(f.confianza)}</span>
-      <div class="fila"><select data-foto-ali="${i}">${opciones}<option value="-1" ${f.elegido < 0 ? 'selected' : ''}>— no agregar —</option></select></div>
-      <div class="fila"><input type="number" inputmode="decimal" data-foto-g="${i}" value="${f.gramos}"><span class="nota">g</span><span class="kcal" style="flex:1">${k} kcal</span></div></div>`;
+      <select data-foto-ali="${i}" aria-label="Alimento de la base">${opciones}<option value="-1" ${f.elegido < 0 ? 'selected' : ''}>— no agregar —</option></select>
+      <div class="campo-fila"><input type="number" inputmode="decimal" data-foto-g="${i}" value="${f.gramos}" aria-label="Gramos"><span class="nota">g</span><span class="kcal">${k} kcal</span></div></div>`;
   }).join('');
   const total = fotoFilas.reduce((t, f) => t + (f.elegido >= 0 ? valoresPara(f.opciones[f.elegido], f.gramos).k : 0), 0);
-  $('#fotoTotal').textContent = `${redondo(total)} kcal`;
-  $('#fotoAgregar').textContent = `Agregar a ${$('#comidaElegida').value}`;
+  $('#fotoTotal').textContent = `${miles(total)} kcal`;
+  $('#fotoAgregar').textContent = `Agregar ${articulo($('#comidaElegida').value)}`;
 }
 $('#fotoItems').addEventListener('change', (e) => {
   const t = e.target;
@@ -525,24 +610,63 @@ $('#fotoAgregar').onclick = () => {
 };
 
 /* ---------- historial y peso ---------- */
+let rangoDias = 7;
+$$('#rango button').forEach((b) => b.addEventListener('click', () => {
+  rangoDias = +b.dataset.dias;
+  $$('#rango button').forEach((x) => x.classList.toggle('activa', x === b));
+  pintarHistorial();
+}));
+const coma = (x) => String(uno(x)).replace('.', ',');
 function pintarHistorial() {
+  // Días del más viejo al de hoy. Hoy cuenta en el gráfico, pero no en el promedio: todavía está en curso.
   const dias = [];
-  for (let i = 0; i < 30; i++) {
+  for (let i = rangoDias - 1; i >= 0; i--) {
     const d = new Date(Date.now() - i * 864e5);
     const l = entradasDe(claveFecha(d));
-    dias.push({ d, t: totales(l), n: l.length });
+    dias.push({ d, t: totales(l), n: l.length, hoy: i === 0 });
   }
-  const con = dias.slice(0, 7).filter((x) => x.n);
-  const prom = con.length ? totales(con.map((x) => x.t)) : null;
-  $('#promedio').innerHTML = prom ? `<div class="grande" style="font-size:26px;font-weight:700">${redondo(prom.k / con.length)} kcal/día</div>
-    <p class="nota">Promedio de ${con.length} día(s) con registro. Proteína ${redondo(prom.p / con.length)} g · Carbos ${redondo(prom.c / con.length)} g · Grasa ${redondo(prom.g / con.length)} g</p>` :
-    '<p class="nota">Todavía no hay registros esta semana.</p>';
-  const max = Math.max(ajustes.kcal * 1.3, ...dias.map((x) => x.t.k));
-  $('#listaDias').innerHTML = dias.filter((x) => x.n).map((x) => `<div class="dia"><span>${textoFecha(x.d)}</span>
-    <div class="barra-dia"><i class="${x.t.k > ajustes.kcal ? 'pasado' : ''}" style="width:${x.t.k / max * 100}%"></i></div><b>${redondo(x.t.k)}</b></div>`).join('') ||
-    '<p class="nota">Sin días registrados.</p>';
-  const ps = Object.entries(pesos).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 15);
-  $('#listaPesos').innerHTML = ps.map(([k, v]) => `<div class="dia"><span>${k.slice(5).split('-').reverse().join('/')}</span><span></span><b>${v} kg</b></div>`).join('');
+  const con = dias.filter((x) => x.n && !x.hoy);
+  const usados = con.length ? con : dias.filter((x) => x.n);
+  const prom = usados.length ? totales(usados.map((x) => x.t)) : null;
+  if (prom) {
+    const pk = prom.k / usados.length;
+    const dif = ajustes.kcal - pk;
+    $('#promedio').innerHTML = `<div class="rotulo-fila"><div class="grande num">${miles(pk)} <small>kcal</small></div>
+      <span class="etiqueta ${dif >= 0 ? 'acento' : ''}">${dif >= 0 ? miles(dif) + ' bajo el objetivo' : miles(-dif) + ' sobre el objetivo'}</span></div>
+      <p class="nota">${usados.length} ${usados.length === 1 ? 'día' : 'días'} con registro${con.length ? ', sin contar hoy' : ''}.</p>`;
+  } else {
+    $('#promedio').innerHTML = `<p class="nota">Todavía no hay registros en los últimos ${rangoDias} días.</p>`;
+  }
+  const max = Math.max(ajustes.kcal * 1.2, ...dias.map((x) => x.t.k)) || 1;
+  const alto = 140; // px disponibles para las barras
+  const barras = dias.map((x) => {
+    const clase = x.hoy ? 'en-curso' : x.t.k > ajustes.kcal ? 'pasado' : '';
+    const etiqueta = rangoDias === 7 ? (x.hoy ? 'Hoy' : DIAS_CORTOS[x.d.getDay()]) : (x.d.getDate() % 5 === 0 || x.hoy ? x.d.getDate() : '');
+    return `<div class="columna"><i class="${clase}" style="height:${x.n ? Math.max(4, x.t.k / max * alto) : 0}px" title="${textoFecha(x.d)}: ${miles(x.t.k)} kcal"></i><span class="${x.hoy ? 'hoy' : ''}">${etiqueta}</span></div>`;
+  }).join('');
+  $('#listaDias').innerHTML = `<div class="grafico"><div class="grafico-meta" style="bottom:${20 + ajustes.kcal / max * alto}px"><span>Objetivo ${miles(ajustes.kcal)}</span></div>
+    <div class="grafico-barras ${rangoDias > 7 ? 'mes' : ''}">${barras}</div></div>
+    <div class="leyenda"><span><i class="punto" style="background:var(--acento)"></i>Dentro</span><span><i class="punto" style="background:var(--pasado)"></i>Pasado</span><span><i class="punto" style="background:var(--en-curso)"></i>Hoy, en curso</span></div>` +
+    (prom ? `<div class="macros linea-arriba">
+      <div class="macro">Proteína<b>${redondo(prom.p / usados.length)} g</b></div><div class="macro">Carbos<b>${redondo(prom.c / usados.length)} g</b></div><div class="macro">Grasa<b>${redondo(prom.g / usados.length)} g</b></div></div>` : '');
+
+  // Peso: el último registro, la diferencia con el más viejo de los últimos 15 y una línea de tendencia.
+  const ps = Object.entries(pesos).sort((a, b) => a[0].localeCompare(b[0])).slice(-15);
+  if (!ps.length) {
+    $('#listaPesos').innerHTML = '<p class="nota">Anotá tu peso cada tanto para ver cómo evoluciona.</p>';
+    $('#pesoCambio').textContent = '';
+    return;
+  }
+  const valores = ps.map(([, v]) => v);
+  const ultimo = valores[valores.length - 1];
+  const cambio = ultimo - valores[0];
+  const dias1 = Math.round((new Date(ps[ps.length - 1][0]) - new Date(ps[0][0])) / 864e5);
+  $('#pesoCambio').textContent = ps.length > 1 ? `${cambio > 0 ? '+' : cambio < 0 ? '−' : ''}${coma(Math.abs(cambio))} kg en ${dias1} ${dias1 === 1 ? 'día' : 'días'}` : '';
+  const mn = Math.min(...valores), mx = Math.max(...valores), rango = mx - mn || 1;
+  const puntos = valores.map((v, i) => `${valores.length > 1 ? i / (valores.length - 1) * 146 + 2 : 74},${6 + (1 - (v - mn) / rango) * 36}`);
+  const [ux, uy] = puntos[puntos.length - 1].split(',');
+  $('#listaPesos').innerHTML = `<div class="peso-fila"><div class="grande num">${coma(ultimo)} <small>kg</small></div>
+    <svg width="150" height="48" viewBox="0 0 150 48" aria-hidden="true"><polyline points="${puntos.join(' ')}" fill="none" stroke="var(--acento)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${ux}" cy="${uy}" r="4" fill="var(--acento)"/></svg></div>`;
 }
 $('#guardarPeso').onclick = () => {
   const v = parseFloat(String($('#pesoHoy').value).replace(',', '.'));
@@ -556,12 +680,17 @@ function pintarAjustes() {
   $('#ajKcal').value = ajustes.kcal; $('#ajP').value = ajustes.p; $('#ajC').value = ajustes.c; $('#ajG').value = ajustes.g;
   const pf = ajustes.perfil || {};
   if (pf.sexo) { $('#calSexo').value = pf.sexo; $('#calEdad').value = pf.edad; $('#calPeso').value = pf.peso; $('#calAltura').value = pf.altura; $('#calAct').value = pf.act; $('#calMeta').value = pf.meta; }
-  $('#listaMios').innerHTML = mios.map((a, i) => `<button class="item" data-mio="${i}"><span class="nombre">${esc(a.n)}</span><span class="kcal">${redondo(a.k)}<small class="nota"> /100g</small></span></button>`).join('') ||
+  $('#listaMios').innerHTML = mios.length ? `<div class="tarjeta lista">${mios.map((a, i) => `<button class="item" data-mio="${i}"><span class="nombre">${esc(a.n)}</span><span class="kcal">${redondo(a.k)}<small>kcal/100 g</small></span></button>`).join('')}</div>` :
     '<p class="nota">Acá aparecen los alimentos que cargues a mano.</p>';
+  $('#ajValObjetivo').textContent = `${miles(ajustes.kcal)} kcal`;
+  $('#ajValMios').textContent = mios.length || '';
+  pintarEstadoFoto();
 }
+// Cada fila de Ajustes abre su hoja.
+$$('.fila-ajuste[data-hoja]').forEach((b) => b.addEventListener('click', () => { pintarAjustes(); abrirHoja(b.dataset.hoja); }));
 $('#guardarAjustes').onclick = () => {
   ajustes = { ...ajustes, kcal: +$('#ajKcal').value || 2000, p: +$('#ajP').value || 0, c: +$('#ajC').value || 0, g: +$('#ajG').value || 0 };
-  guardado.escribir('ajustes', ajustes); pintarHoy(); avisar('Objetivo guardado');
+  guardado.escribir('ajustes', ajustes); pintarHoy(); pintarAjustes(); cerrarHoja(); avisar('Objetivo guardado');
 };
 $('#calcular').onclick = () => {
   const sexo = $('#calSexo').value, edad = +$('#calEdad').value, peso = +$('#calPeso').value, altura = +$('#calAltura').value;
@@ -623,4 +752,5 @@ $('#importar').onchange = async (ev) => {
 
 /* ---------- inicio ---------- */
 pintarHoy();
+pintarAjustes();
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});

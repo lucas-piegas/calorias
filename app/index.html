@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Calorías</title>
-<meta name="theme-color" content="#0f766e">
+<meta name="theme-color" content="#f3f4f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101211" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -15,191 +16,307 @@
 <link rel="stylesheet" href="estilos.css">
 </head>
 <body>
-<header class="barra">
-  <button class="icono" id="diaAnterior" aria-label="Día anterior">‹</button>
-  <button class="fecha" id="fechaTexto">Hoy</button>
-  <button class="icono" id="diaSiguiente" aria-label="Día siguiente">›</button>
-</header>
+<!-- Íconos: se usan con <svg class="i"><use href="#i-…"/></svg> -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-desayuno" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-almuerzo" viewBox="0 0 24 24"><path d="M7 2v8M4 2v5a3 3 0 0 0 6 0V2M7 10v12M17 2c-2 0-3 2-3 6s1 5 3 5v9"/></symbol>
+  <symbol id="i-merienda" viewBox="0 0 24 24"><path d="M4 8h12v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8zM16 10h2a3 3 0 0 1 0 6h-2M8 2v3M12 2v3"/></symbol>
+  <symbol id="i-cena" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+  <symbol id="i-snacks" viewBox="0 0 24 24"><path d="M12 7c-2-2-6-1.5-6.5 3S7 20 9.5 20c1 0 1.5-.5 2.5-.5s1.5.5 2.5.5C17 20 19 14 18.5 10S14 5 12 7zM12 7c0-2 1-4 3-4"/></symbol>
+  <symbol id="i-mas" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-menos" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-izq" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+  <symbol id="i-der" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-cerrar" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-buscar" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></symbol>
+  <symbol id="i-codigo" viewBox="0 0 24 24"><path d="M4 6v12M7.5 6v12M10.5 6v12M14 6v12M17 6v12M20 6v12"/></symbol>
+  <symbol id="i-camara" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  <symbol id="i-galeria" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></symbol>
+  <symbol id="i-crear" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/></symbol>
+  <symbol id="i-estrella" viewBox="0 0 24 24"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/></symbol>
+  <symbol id="i-diario" viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4zM5 17a3 3 0 0 1 3-3h11"/></symbol>
+  <symbol id="i-historial" viewBox="0 0 24 24"><path d="M5 20V11M12 20V5M19 20v-6M3 20h18"/></symbol>
+  <symbol id="i-ajustes" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+  <symbol id="i-objetivo" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/></symbol>
+  <symbol id="i-macros" viewBox="0 0 24 24"><path d="M5 20V11M12 20V5M19 20v-6"/></symbol>
+  <symbol id="i-calcular" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01"/></symbol>
+  <symbol id="i-exportar" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="i-importar" viewBox="0 0 24 24"><path d="M12 20V9M7 14l5-5 5 5M5 4h14"/></symbol>
+</svg>
 
 <main>
-  <!-- HOY -->
+  <!-- DIARIO -->
   <section id="vistaHoy" class="vista activa">
-    <div class="tarjeta resumen">
-      <div class="anillo" id="anillo">
-        <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="fondo"/><circle cx="60" cy="60" r="52" class="valor" id="anilloValor"/></svg>
-        <div class="anillo-texto"><strong id="kcalRestantes">0</strong><span id="kcalEtiqueta">restantes</span></div>
+    <header class="cabeza">
+      <div class="cabeza-texto">
+        <span class="sobretitulo" id="fechaLarga"></span>
+        <button class="titulo" id="fechaTexto">Hoy</button>
       </div>
-      <div class="totales">
-        <div><span>Objetivo</span><b id="kcalObjetivo">0</b></div>
-        <div><span>Comido</span><b id="kcalComido">0</b></div>
+      <div class="cabeza-botones">
+        <button class="redondo" id="diaAnterior" aria-label="Día anterior"><svg class="i"><use href="#i-izq"/></svg></button>
+        <button class="redondo" id="diaSiguiente" aria-label="Día siguiente"><svg class="i"><use href="#i-der"/></svg></button>
+      </div>
+    </header>
+    <div class="semana" id="semana"></div>
+
+    <div class="tarjeta resumen">
+      <div class="resumen-arriba">
+        <div class="anillo" id="anillo">
+          <svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" class="fondo"/><circle cx="60" cy="60" r="52" class="valor" id="anilloValor"/></svg>
+          <div class="anillo-texto"><strong class="num" id="kcalRestantes">0</strong><span id="kcalEtiqueta">kcal restantes</span></div>
+        </div>
+        <div class="totales">
+          <div><span>Objetivo</span><b class="num"><span id="kcalObjetivo">0</span> <small>kcal</small></b></div>
+          <div><span>Comido</span><b class="num"><span id="kcalComido">0</span> <small>kcal</small></b></div>
+        </div>
       </div>
       <div class="macros" id="macros"></div>
+    </div>
+
+    <div class="seccion-cabeza">
+      <h2>Comidas</h2>
+      <button class="enlace" id="copiarAyer" hidden>Copiar del día anterior</button>
     </div>
     <div id="comidas"></div>
   </section>
 
   <!-- HISTORIAL -->
   <section id="vistaHistorial" class="vista">
-    <div class="tarjeta"><h2>Últimos 7 días</h2><div id="promedio"></div></div>
-    <div class="tarjeta"><h2>Días</h2><div id="listaDias"></div></div>
-    <div class="tarjeta"><h2>Peso</h2>
-      <div class="fila"><input id="pesoHoy" type="number" inputmode="decimal" step="0.1" placeholder="kg de hoy"><button class="boton" id="guardarPeso">Guardar</button></div>
+    <header class="cabeza"><h1 class="titulo">Historial</h1></header>
+    <div class="segmentos" id="rango">
+      <button class="activa" data-dias="7">7 días</button>
+      <button data-dias="30">30 días</button>
+    </div>
+    <div class="tarjeta">
+      <h2 class="rotulo">Promedio por día</h2>
+      <div id="promedio"></div>
+      <div id="listaDias"></div>
+    </div>
+    <div class="tarjeta">
+      <div class="rotulo-fila"><h2 class="rotulo">Peso</h2><span id="pesoCambio" class="dato-acento"></span></div>
       <div id="listaPesos"></div>
+      <div class="campo-fila">
+        <label class="campo"><input id="pesoHoy" type="number" inputmode="decimal" step="0.1" placeholder="Peso de hoy" aria-label="Peso de hoy en kilos"><span>kg</span></label>
+        <button class="boton chico" id="guardarPeso">Guardar</button>
+      </div>
     </div>
   </section>
 
   <!-- AJUSTES -->
   <section id="vistaAjustes" class="vista">
-    <div class="tarjeta">
-      <h2>Objetivo diario</h2>
-      <label>Calorías (kcal)<input id="ajKcal" type="number" inputmode="numeric"></label>
-      <div class="tres">
-        <label>Proteína (g)<input id="ajP" type="number" inputmode="numeric"></label>
-        <label>Carbohidratos (g)<input id="ajC" type="number" inputmode="numeric"></label>
-        <label>Grasa (g)<input id="ajG" type="number" inputmode="numeric"></label>
-      </div>
-      <button class="boton" id="guardarAjustes">Guardar objetivo</button>
+    <header class="cabeza"><h1 class="titulo">Ajustes</h1></header>
+
+    <h2 class="rotulo grupo">Objetivo</h2>
+    <div class="tarjeta lista-ajustes">
+      <button class="fila-ajuste" data-hoja="#hojaObjetivo"><span class="ficha t-alm"><svg class="i"><use href="#i-objetivo"/></svg></span><span class="fila-texto">Calorías y macros</span><span class="valor num" id="ajValObjetivo"></span><svg class="i flecha"><use href="#i-der"/></svg></button>
+      <button class="fila-ajuste" data-hoja="#hojaCalcular"><span class="ficha t-des"><svg class="i"><use href="#i-calcular"/></svg></span><span class="fila-texto">Calcular con mis datos<small>Edad, peso, altura y actividad</small></span><svg class="i flecha"><use href="#i-der"/></svg></button>
     </div>
-    <div class="tarjeta">
-      <h2>Calcular mi objetivo</h2>
-      <p class="nota">Fórmula de Mifflin-St Jeor. Es una estimación; ajustala según cómo evolucione tu peso.</p>
-      <div class="tres">
-        <label>Sexo<select id="calSexo"><option value="h">Hombre</option><option value="m">Mujer</option></select></label>
-        <label>Edad<input id="calEdad" type="number" inputmode="numeric"></label>
-        <label>Peso (kg)<input id="calPeso" type="number" inputmode="decimal"></label>
-      </div>
-      <div class="tres">
-        <label>Altura (cm)<input id="calAltura" type="number" inputmode="numeric"></label>
-        <label>Actividad<select id="calAct">
-          <option value="1.2">Sedentaria</option><option value="1.375">Liviana</option>
-          <option value="1.55" selected>Moderada</option><option value="1.725">Alta</option></select></label>
-        <label>Meta<select id="calMeta"><option value="-500">Bajar ~0,5 kg/sem</option>
-          <option value="-250">Bajar despacio</option><option value="0" selected>Mantener</option><option value="300">Subir</option></select></label>
-      </div>
-      <button class="boton secundario" id="calcular">Calcular y usar</button>
-      <p id="calResultado" class="nota"></p>
+
+    <h2 class="rotulo grupo">Alimentos</h2>
+    <div class="tarjeta lista-ajustes">
+      <button class="fila-ajuste" data-hoja="#hojaMios"><span class="ficha t-cen"><svg class="i"><use href="#i-crear"/></svg></span><span class="fila-texto">Mis alimentos</span><span class="valor num" id="ajValMios"></span><svg class="i flecha"><use href="#i-der"/></svg></button>
     </div>
-    <div class="tarjeta">
-      <h2>Mis alimentos</h2>
-      <div id="listaMios"></div>
-      <button class="boton secundario" id="nuevoMio">+ Crear alimento</button>
+
+    <h2 class="rotulo grupo">Foto del plato</h2>
+    <div class="tarjeta lista-ajustes">
+      <button class="fila-ajuste" data-hoja="#hojaFotoConf"><span class="ficha t-mer"><svg class="i"><use href="#i-camara"/></svg></span><span class="fila-texto">Conexión con Claude</span><span id="ajValFoto"></span><svg class="i flecha"><use href="#i-der"/></svg></button>
     </div>
-    <div class="tarjeta">
-      <h2>Foto del plato (Claude)</h2>
-      <p class="nota">Dirección y clave del intermediario. Solo quedan en este teléfono.</p>
-      <label>Dirección<input id="ajFotoUrl" placeholder="https://calorias-foto.….workers.dev"></label>
-      <label>Clave de la app<input id="ajFotoClave" type="password" autocomplete="off"></label>
-      <button class="boton secundario" id="guardarFoto">Guardar</button>
-      <p class="nota" id="fotoConfigurada"></p>
+
+    <h2 class="rotulo grupo">Tus datos</h2>
+    <div class="tarjeta lista-ajustes">
+      <button class="fila-ajuste" id="exportar"><span class="ficha t-sna"><svg class="i"><use href="#i-exportar"/></svg></span><span class="fila-texto">Exportar copia</span><svg class="i flecha"><use href="#i-der"/></svg></button>
+      <label class="fila-ajuste"><span class="ficha t-neutra"><svg class="i"><use href="#i-importar"/></svg></span><span class="fila-texto">Importar copia</span><svg class="i flecha"><use href="#i-der"/></svg><input type="file" id="importar" accept="application/json" hidden></label>
     </div>
-    <div class="tarjeta">
-      <h2>Copia de seguridad</h2>
-      <p class="nota">Tus datos viven solo en este teléfono. Exportá una copia cada tanto.</p>
-      <div class="fila">
-        <button class="boton secundario" id="exportar">Exportar</button>
-        <label class="boton secundario">Importar<input type="file" id="importar" accept="application/json" hidden></label>
-      </div>
-    </div>
-    <div class="tarjeta nota">
+    <p class="nota grupo-nota">Tus datos viven solo en este teléfono. Exportá una copia cada tanto.</p>
+
+    <p class="nota grupo-nota creditos">
       Datos: <a href="https://fdc.nal.usda.gov/" target="_blank" rel="noopener">USDA FoodData Central</a> (dominio público) y
       <a href="https://world.openfoodfacts.org/" target="_blank" rel="noopener">Open Food Facts</a> (ODbL).
       Las comidas marcadas «aprox.» son estimaciones.
-    </div>
+    </p>
   </section>
 </main>
 
+<button class="flotante" id="botonAgregar"><svg class="i"><use href="#i-mas"/></svg>Agregar</button>
+
 <nav class="pestanas">
-  <button data-vista="vistaHoy" class="activa">Diario</button>
-  <button class="agregar" id="botonAgregar" aria-label="Agregar comida">+</button>
-  <button data-vista="vistaHistorial">Historial</button>
-  <button data-vista="vistaAjustes">Ajustes</button>
+  <button data-vista="vistaHoy" class="activa"><svg class="i"><use href="#i-diario"/></svg>Diario</button>
+  <button data-vista="vistaHistorial"><svg class="i"><use href="#i-historial"/></svg>Historial</button>
+  <button data-vista="vistaAjustes"><svg class="i"><use href="#i-ajustes"/></svg>Ajustes</button>
 </nav>
 
 <!-- HOJA: buscar -->
 <div class="hoja" id="hojaBuscar" hidden>
   <div class="hoja-cabeza">
-    <button class="icono" data-cerrar>✕</button>
-    <select id="comidaElegida"></select>
-    <button class="icono" id="abrirFoto" aria-label="Foto del plato">📷</button>
-    <button class="icono" id="escanear" aria-label="Escanear código de barras">▥</button>
+    <button class="redondo" data-cerrar aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button>
+    <strong id="buscarTitulo">Agregar</strong>
   </div>
-  <div id="agregadosAhora" class="tarjeta agregados" hidden></div>
-  <input id="busqueda" type="search" placeholder="Buscar: milanesa, banana, yogur…" autocomplete="off">
-  <div class="filtros">
-    <button class="chip activa" data-fuente="todo">Todo</button>
-    <button class="chip" data-fuente="ali">Comidas y alimentos</button>
-    <button class="chip" data-fuente="env">Envasados</button>
+  <select id="comidaElegida" hidden></select>
+  <div class="pastillas desliza" id="comidaPastillas"></div>
+  <label class="buscador"><svg class="i"><use href="#i-buscar"/></svg><input id="busqueda" type="search" placeholder="Buscar: milanesa, banana, yogur…" autocomplete="off" aria-label="Buscar alimento"></label>
+  <div class="accesos">
+    <button class="acceso" id="escanear"><span class="ficha t-alm"><svg class="i"><use href="#i-codigo"/></svg></span>Escanear código</button>
+    <button class="acceso" id="abrirFoto"><span class="ficha t-des"><svg class="i"><use href="#i-camara"/></svg></span>Foto del plato</button>
+    <button class="acceso" id="crearDesdeBuscar"><span class="ficha t-cen"><svg class="i"><use href="#i-crear"/></svg></span>Crear alimento</button>
   </div>
-  <div id="resultados" class="lista"></div>
+  <div class="pastillas" id="filtrosFuente">
+    <button class="pastilla activa" data-fuente="todo">Todo</button>
+    <button class="pastilla" data-fuente="ali">Comidas y alimentos</button>
+    <button class="pastilla" data-fuente="env">Envasados</button>
+  </div>
+  <div id="resultados"></div>
+  <div id="agregadosAhora" class="agregados" hidden></div>
 </div>
 
 <!-- HOJA: detalle -->
-<div class="hoja" id="hojaDetalle" hidden>
-  <div class="hoja-cabeza">
-    <button class="icono" data-cerrar>‹</button>
-    <strong>Cantidad</strong>
-    <button class="icono" id="favorito" aria-label="Favorito">☆</button>
+<div class="hoja con-pie" id="hojaDetalle" hidden>
+  <div class="hoja-cabeza entre">
+    <button class="redondo" data-cerrar aria-label="Volver"><svg class="i"><use href="#i-izq"/></svg></button>
+    <button class="redondo" id="favorito" aria-label="Favorito"><svg class="i"><use href="#i-estrella"/></svg></button>
   </div>
-  <h3 id="detNombre"></h3>
-  <p class="nota" id="detFuente"></p>
-  <div class="fila">
-    <input id="detCantidad" type="number" inputmode="decimal" step="any" value="1">
-    <select id="detPorcion"></select>
+  <h1 class="det-nombre" id="detNombre"></h1>
+  <p class="nota det-fuente" id="detFuente"></p>
+  <div class="tarjeta">
+    <h2 class="rotulo">Cantidad</h2>
+    <div class="paso">
+      <button class="redondo grande suave" id="detMenos" aria-label="Menos"><svg class="i"><use href="#i-menos"/></svg></button>
+      <div class="paso-valor">
+        <input id="detCantidad" class="num" type="number" inputmode="decimal" step="any" value="1" aria-label="Cantidad">
+        <span class="nota" id="detUnidad"></span>
+      </div>
+      <button class="redondo grande suave" id="detMas" aria-label="Más"><svg class="i"><use href="#i-mas"/></svg></button>
+    </div>
+    <select id="detPorcion" hidden></select>
+    <div class="pastillas envuelve" id="detPorciones"></div>
   </div>
-  <div class="tarjeta resultado" id="detResultado"></div>
-  <button class="boton" id="detAgregar">Agregar</button>
-  <button class="boton peligro" id="detBorrar" hidden>Borrar del diario</button>
+  <div class="tarjeta" id="detResultado"></div>
+  <div class="pie">
+    <button class="boton" id="detAgregar">Agregar</button>
+    <button class="boton peligro" id="detBorrar" hidden>Borrar del diario</button>
+  </div>
 </div>
 
 <!-- HOJA: escáner -->
 <div class="hoja" id="hojaEscaner" hidden>
-  <div class="hoja-cabeza"><button class="icono" data-cerrar>✕</button><strong>Código de barras</strong><span></span></div>
+  <div class="hoja-cabeza"><button class="redondo" data-cerrar aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button><strong>Código de barras</strong></div>
   <div id="lector"></div>
-  <div class="fila"><input id="codigoManual" inputmode="numeric" placeholder="o escribí el código"><button class="boton" id="buscarCodigo">Buscar</button></div>
+  <div class="campo-fila">
+    <label class="campo"><input id="codigoManual" inputmode="numeric" placeholder="o escribí el código" aria-label="Código de barras"></label>
+    <button class="boton chico" id="buscarCodigo">Buscar</button>
+  </div>
   <p class="nota" id="escanerEstado"></p>
 </div>
 
 <!-- HOJA: foto del plato -->
 <div class="hoja" id="hojaFoto" hidden>
-  <div class="hoja-cabeza"><button class="icono" data-cerrar>✕</button><strong>Foto del plato</strong><span></span></div>
+  <div class="hoja-cabeza"><button class="redondo" data-cerrar aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button><strong>Foto del plato</strong></div>
   <div id="fotoPaso1">
-    <div class="fila">
-      <label class="boton secundario" style="flex:1">📷 Sacar foto<input type="file" id="fotoCamara" class="foto-entrada" accept="image/*" capture="environment" hidden></label>
-      <label class="boton secundario" style="flex:1">🖼️ Galería<input type="file" id="fotoGaleria" class="foto-entrada" accept="image/*" hidden></label>
+    <div class="accesos dos">
+      <label class="acceso"><span class="ficha t-des"><svg class="i"><use href="#i-camara"/></svg></span>Sacar foto<input type="file" id="fotoCamara" class="foto-entrada" accept="image/*" capture="environment" hidden></label>
+      <label class="acceso"><span class="ficha t-cen"><svg class="i"><use href="#i-galeria"/></svg></span>Elegir de la galería<input type="file" id="fotoGaleria" class="foto-entrada" accept="image/*" hidden></label>
     </div>
     <img id="fotoVista" alt="" hidden>
-    <label>Peso de la comida (g, sin el plato)<input id="fotoGramos" type="number" inputmode="decimal" placeholder="450"></label>
-    <div class="filtros" id="fotoModelos">
-      <button class="chip activa" data-modelo="opus">Opus 5.5</button>
-      <button class="chip" data-modelo="sonnet">Sonnet 5.5</button>
+    <div class="tarjeta formulario">
+      <label>Peso de la comida (g, sin el plato)<input id="fotoGramos" type="number" inputmode="decimal" placeholder="450"></label>
+      <label>Aclaración (opcional)<input id="fotoNota" placeholder="frito en aceite, con azúcar…"></label>
+      <span class="etiqueta-campo">Modelo</span>
+      <div class="segmentos" id="fotoModelos">
+        <button class="activa" data-modelo="opus">Opus 5.5</button>
+        <button data-modelo="sonnet">Sonnet 5.5</button>
+      </div>
     </div>
-    <label>Aclaración (opcional)<input id="fotoNota" placeholder="frito en aceite, con azúcar…"></label>
     <button class="boton" id="fotoAnalizar">Analizar</button>
     <p class="nota" id="fotoEstado"></p>
   </div>
   <div id="fotoPaso2" hidden>
     <div class="tarjeta"><h3 id="fotoPlato"></h3><p class="nota" id="fotoAdvertencias"></p></div>
-    <div id="fotoItems" class="lista"></div>
-    <div class="tarjeta resultado"><span class="grande" id="fotoTotal">0 kcal</span><p class="nota" id="fotoInfo"></p></div>
+    <div id="fotoItems" class="tarjeta lista"></div>
+    <div class="tarjeta"><span class="grande num" id="fotoTotal">0 kcal</span><p class="nota" id="fotoInfo"></p></div>
     <button class="boton" id="fotoAgregar">Agregar</button>
     <button class="boton secundario" id="fotoOtra">Otra foto</button>
   </div>
 </div>
 
+<!-- HOJA: objetivo -->
+<div class="hoja" id="hojaObjetivo" hidden>
+  <div class="hoja-cabeza"><button class="redondo" data-cerrar aria-label="Volver"><svg class="i"><use href="#i-izq"/></svg></button><strong>Objetivo diario</strong></div>
+  <div class="tarjeta formulario">
+    <label>Calorías (kcal)<input id="ajKcal" type="number" inputmode="numeric"></label>
+    <div class="tres">
+      <label>Proteína (g)<input id="ajP" type="number" inputmode="numeric"></label>
+      <label>Carbos (g)<input id="ajC" type="number" inputmode="numeric"></label>
+      <label>Grasa (g)<input id="ajG" type="number" inputmode="numeric"></label>
+    </div>
+  </div>
+  <button class="boton" id="guardarAjustes">Guardar objetivo</button>
+</div>
+
+<!-- HOJA: calcular -->
+<div class="hoja" id="hojaCalcular" hidden>
+  <div class="hoja-cabeza"><button class="redondo" data-cerrar aria-label="Volver"><svg class="i"><use href="#i-izq"/></svg></button><strong>Calcular mi objetivo</strong></div>
+  <p class="nota">Fórmula de Mifflin-St Jeor. Es una estimación; ajustala según cómo evolucione tu peso.</p>
+  <div class="tarjeta formulario">
+    <div class="dos">
+      <label>Sexo<select id="calSexo"><option value="h">Hombre</option><option value="m">Mujer</option></select></label>
+      <label>Edad<input id="calEdad" type="number" inputmode="numeric"></label>
+    </div>
+    <div class="dos">
+      <label>Peso (kg)<input id="calPeso" type="number" inputmode="decimal"></label>
+      <label>Altura (cm)<input id="calAltura" type="number" inputmode="numeric"></label>
+    </div>
+    <label>Actividad<select id="calAct">
+      <option value="1.2">Sedentaria</option><option value="1.375">Liviana</option>
+      <option value="1.55" selected>Moderada</option><option value="1.725">Alta</option></select></label>
+    <label>Meta<select id="calMeta"><option value="-500">Bajar ~0,5 kg por semana</option>
+      <option value="-250">Bajar despacio</option><option value="0" selected>Mantener</option><option value="300">Subir</option></select></label>
+  </div>
+  <button class="boton" id="calcular">Calcular y usar</button>
+  <p id="calResultado" class="nota"></p>
+</div>
+
+<!-- HOJA: mis alimentos -->
+<div class="hoja" id="hojaMios" hidden>
+  <div class="hoja-cabeza"><button class="redondo" data-cerrar aria-label="Volver"><svg class="i"><use href="#i-izq"/></svg></button><strong>Mis alimentos</strong></div>
+  <div id="listaMios"></div>
+  <button class="boton secundario" id="nuevoMio">Crear alimento</button>
+</div>
+
+<!-- HOJA: conexión de la foto -->
+<div class="hoja" id="hojaFotoConf" hidden>
+  <div class="hoja-cabeza"><button class="redondo" data-cerrar aria-label="Volver"><svg class="i"><use href="#i-izq"/></svg></button><strong>Conexión con Claude</strong></div>
+  <p class="nota">Dirección y clave del intermediario. Solo quedan en este teléfono.</p>
+  <div class="tarjeta formulario">
+    <label>Dirección<input id="ajFotoUrl" placeholder="https://calorias-foto.….workers.dev"></label>
+    <label>Clave de la app<input id="ajFotoClave" type="password" autocomplete="off"></label>
+  </div>
+  <button class="boton" id="guardarFoto">Guardar</button>
+  <p class="nota" id="fotoConfigurada"></p>
+</div>
+
 <!-- HOJA: crear alimento -->
 <div class="hoja" id="hojaMio" hidden>
-  <div class="hoja-cabeza"><button class="icono" data-cerrar>✕</button><strong>Mi alimento</strong><span></span></div>
-  <label>Nombre<input id="mioNombre"></label>
-  <p class="nota">Valores por cada 100 g (o 100 ml). Copialos de la etiqueta.</p>
-  <div class="tres">
-    <label>kcal<input id="mioK" type="number" inputmode="decimal"></label>
-    <label>Proteína<input id="mioP" type="number" inputmode="decimal"></label>
-    <label>Carbos<input id="mioC" type="number" inputmode="decimal"></label>
+  <div class="hoja-cabeza"><button class="redondo" data-cerrar aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button><strong>Mi alimento</strong></div>
+  <div class="tarjeta formulario">
+    <label>Nombre<input id="mioNombre"></label>
   </div>
-  <div class="tres">
-    <label>Grasa<input id="mioG" type="number" inputmode="decimal"></label>
-    <label>Porción<input id="mioPorNombre" placeholder="1 unidad"></label>
-    <label>g por porción<input id="mioPorG" type="number" inputmode="decimal"></label>
+  <h2 class="rotulo grupo">Cada 100 g (o 100 ml)</h2>
+  <p class="nota">Copiá los valores de la etiqueta.</p>
+  <div class="tarjeta formulario">
+    <div class="dos">
+      <label>kcal<input id="mioK" type="number" inputmode="decimal"></label>
+      <label>Proteína (g)<input id="mioP" type="number" inputmode="decimal"></label>
+    </div>
+    <div class="dos">
+      <label>Carbos (g)<input id="mioC" type="number" inputmode="decimal"></label>
+      <label>Grasa (g)<input id="mioG" type="number" inputmode="decimal"></label>
+    </div>
+  </div>
+  <h2 class="rotulo grupo">Porción (opcional)</h2>
+  <div class="tarjeta formulario">
+    <div class="dos">
+      <label>Nombre<input id="mioPorNombre" placeholder="1 unidad"></label>
+      <label>Gramos<input id="mioPorG" type="number" inputmode="decimal"></label>
+    </div>
   </div>
   <button class="boton" id="mioGuardar">Guardar</button>
   <button class="boton peligro" id="mioBorrar" hidden>Borrar</button>
